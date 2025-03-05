@@ -1,24 +1,7 @@
-# SmartLink 开发指导与项目文档
-
-## 📝 README.md
-
 ```markdown
 # SmartLink
 
-<p align="center">
-  <img src="public/logo.svg" alt="SmartLink Logo" width="120" />
-</p>
-
-<p align="center">
-  连接人与AI的桥梁，让你的社交与工作体验超越想象
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Tauri-2.0-blue" alt="Tauri 2.0" />
-  <img src="https://img.shields.io/badge/Next.js-14.0-black" alt="Next.js 14.0" />
-  <img src="https://img.shields.io/badge/TypeScript-5.0-blue" alt="TypeScript 5.0" />
-  <img src="https://img.shields.io/badge/Tailwind-3.0-cyan" alt="Tailwind 3.0" />
-</p>
+连接人与AI的桥梁，让你的社交与工作体验超越想象
 
 ## 🚀 介绍
 
