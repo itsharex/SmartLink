@@ -45,7 +45,7 @@ export default function ContactsPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* 侧边导航 */}
-      <SideNav />
+      <SideNav userName={''} />
       
       <div className="flex-1 bg-bg-primary p-6 overflow-auto">
         <div className="max-w-6xl mx-auto">

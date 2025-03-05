@@ -3,8 +3,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  assetPrefix: './',
-  trailingSlash: true,
+  // 使用空字符串作为assetPrefix，表示使用根路径
+  assetPrefix: '',
+  // 保持URL一致性
+  trailingSlash: false,
+  basePath: '',
   webpack: (config: { resolve: { fallback: any; }; }) => {
     config.resolve.fallback = {
       ...(config.resolve.fallback || {}),

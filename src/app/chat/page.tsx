@@ -114,7 +114,7 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* 侧边导航 */}
-      <SideNav />
+      <SideNav userName={''} />
       
       {/* 聊天列表 */}
       <ChatList 
