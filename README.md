@@ -1,4 +1,3 @@
-```markdown
 # SmartLink
 
 连接人与AI的桥梁，让你的社交与工作体验超越想象
