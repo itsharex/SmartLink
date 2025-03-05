@@ -1,0 +1,47 @@
+[package]
+name = "time-whisper"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["cdylib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.0.0-beta.9", features = [] }
+tauri-plugin-shell = "2.0.0-beta.2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+chrono = { version = "0.4.35", features = ["serde"] }
+tokio = { version = "1.0", features = ["full"] }
+winreg = "0.10"
+dirs = "4.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.48", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_Foundation"
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+core-graphics = "0.22"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.12"

@@ -1,0 +1,27 @@
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0A1128;
+  --bg-secondary: #0F1C3F;
+  --bg-tertiary: #162955;
+  --accent-primary: #00E5FF;
+  --accent-secondary: #7B68EE;
+  --accent-tertiary: #FF3864;
+  --text-primary: #E0E0E0;
+  --text-secondary: #9E9E9E;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-20px) translateX(10px); }
+  50% { transform: translateY(0) translateX(20px); }
+  75% { transform: translateY(20px) translateX(10px); }
+}
+
+@keyframes border-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
