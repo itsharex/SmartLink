@@ -1,42 +1,65 @@
 [package]
-name = "time-whisper"
+name = "smartlink"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
+description = "SmartLink - A bridge connecting people and AI"
+authors = ["Harrison <u7541840@gmail.com>"]
+license = "MIT"
 repository = ""
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.70"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+# If using additional metadata
+[package.metadata.bundle]
+identifier = "com.example.smartlink"
+icon = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png"]
+category = "SocialNetworking"
 
-[lib]
-name = "app_lib"
-crate-type = ["cdylib"]
-
+# See more: https://tauri.studio/v1/api/config
 [build-dependencies]
-tauri-build = { version = "2.0.4", features = [] }
+tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
-serde_json = "1.0"
+# Tauri core dependencies
+tauri = { version = "2.0.0", features = ["image-png", "image-ico"] }
 serde = { version = "1.0", features = ["derive"] }
-log = "0.4"
-tauri = { version = "2.0.0-beta.9", features = [] }
-tauri-plugin-shell = "2.0.0-beta.2"
+serde_json = "1.0"
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+
+# Database and storage
+mongodb = { version = "2.6.0", features = ["tokio-runtime"] }
+sqlx = { version = "0.7", features = [ "runtime-tokio", "tls-rustls", "sqlite", "macros" ] }
+
+# Authentication and security
+oauth2 = "4.4"
+bcrypt = "0.15"
+rand = "0.8"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+jsonwebtoken = "8.3"
+
+# Utilities
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+url = "2.4"
+once_cell = "1.18"
+dotenv = "0.15"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-rusqlite = { version = "0.29.0", features = ["bundled"] }
-chrono = { version = "0.4.35", features = ["serde"] }
-tokio = { version = "1.0", features = ["full"] }
-winreg = "0.10"
-dirs = "4.0"
+
+# Encryption library
+ring = "0.17"
+aes-gcm = "0.10"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.48", features = [
-    "Win32_UI_WindowsAndMessaging",
-    "Win32_System_Threading",
-    "Win32_System_ProcessStatus",
-    "Win32_Foundation"
+ "Win32_UI_WindowsAndMessaging",
+ "Win32_System_Threading",
+ "Win32_System_ProcessStatus",
+ "Win32_Foundation"
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
