@@ -1,9 +1,12 @@
 // src-tauri/src/auth/commands.rs
 
+use std::env;
+
 use crate::auth::{AuthManager, AuthError, models::*};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use tauri::{command, AppHandle, Manager};
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 // Login request
 #[derive(Debug, Deserialize)]
@@ -42,6 +45,14 @@ pub struct LoginResponse {
     pub token_expires: DateTime<Utc>,
 }
 
+// JWT claims structure
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    sub: String,    // Subject (user_id)
+    exp: i64,       // Expiration time (Unix timestamp)
+    iat: i64,       // Issued at (Unix timestamp)
+}
+
 // Convert string to OAuthProvider
 fn parse_oauth_provider(provider: &str) -> Result<OAuthProvider, AuthError> {
     match provider.to_lowercase().as_str() {
@@ -51,13 +62,44 @@ fn parse_oauth_provider(provider: &str) -> Result<OAuthProvider, AuthError> {
     }
 }
 
-// Generate JWT token (simplified version, use a professional library in real applications)
+/// Generate a secure JWT token
 fn generate_token(user_id: &str) -> (String, DateTime<Utc>) {
-    // In a real application, you should use a library like jsonwebtoken to generate JWT
-    let token = format!("sample_token_{}", user_id);
-    let expires = Utc::now() + chrono::Duration::hours(24);
+    // Get JWT secret from environment variable or use a default for development
+    let secret = env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "my-secret-key-for-dev-only".to_string());
     
-    (token, expires)
+    // Set token expiration (24 hours from now)
+    let expiration = Utc::now() + Duration::hours(24);
+    
+    // Create the claims
+    let claims = Claims {
+        sub: user_id.to_string(),
+        exp: expiration.timestamp(),
+        iat: Utc::now().timestamp(),
+    };
+    
+    // Create the JWT
+    let token = encode(
+        &Header::new(Algorithm::HS256),  // Using HMAC SHA-256 algorithm
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes())
+    ).expect("Failed to generate JWT");  // In production, handle this error properly
+    
+    (token, expiration)
+}
+
+// Optional: Add a function to validate tokens
+fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+    let secret = env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "my-secret-key-for-dev-only".to_string());
+    
+    let validation = jsonwebtoken::Validation::new(Algorithm::HS256);
+    
+    jsonwebtoken::decode::<Claims>(
+        token,
+        &jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+        &validation
+    ).map(|data| data.claims)
 }
 
 // Register with email and password
