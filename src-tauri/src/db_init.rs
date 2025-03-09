@@ -9,7 +9,7 @@ pub async fn init_database() -> Result<Database, Box<dyn std::error::Error>> {
     // Load .env file
     dotenv().ok();
     
-    // Get connection string from environment variable
+    // Get connection string from environment variables
     let mongodb_uri = env::var("MONGO_URI")
         .expect("MONGO_URI must be set in .env file");
     
@@ -31,7 +31,7 @@ pub async fn init_database() -> Result<Database, Box<dyn std::error::Error>> {
 
 // Ensure required collections and indexes exist
 pub async fn ensure_indexes(db: &Database) -> Result<(), Box<dyn std::error::Error>> {
-    // Ensure index for the conversations collection
+    // Ensure indexes for the conversations collection
     db.collection::<mongodb::bson::Document>("conversations")
         .create_index(
             mongodb::IndexModel::builder()
@@ -41,7 +41,7 @@ pub async fn ensure_indexes(db: &Database) -> Result<(), Box<dyn std::error::Err
         )
         .await?;
     
-    // Ensure index for the messages collection
+    // Ensure indexes for the messages collection
     db.collection::<mongodb::bson::Document>("messages")
         .create_index(
             mongodb::IndexModel::builder()
@@ -51,7 +51,7 @@ pub async fn ensure_indexes(db: &Database) -> Result<(), Box<dyn std::error::Err
         )
         .await?;
     
-    // Ensure index for the chat_events collection (for offline messages)
+    // Ensure indexes for the chat_events collection (for offline messages)
     db.collection::<mongodb::bson::Document>("chat_events")
         .create_index(
             mongodb::IndexModel::builder()
