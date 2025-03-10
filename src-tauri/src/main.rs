@@ -1,144 +1,65 @@
-mod platform;
-mod db;
+// src-tauri/src/main.rs
+mod auth;
+mod chat;
+mod db_init;
 
-use db::storage::StorageError;
-use platform::windows::Windows;
-use platform::AutoStart;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
-use crate::db::{storage::Storage, types::{AppUsageRecord, AppUsageStats}};
+use std::sync::Arc;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AppUsage {
-    pub name: String,
-    pub total_time: u64,
-    pub last_active: u64,
-}
+use auth::commands as auth_commands;
+use chat::commands as chat_commands;
+use mongodb::Database;
+use tauri::{Listener, Manager};
 
-pub struct AppState {
-    usage_data: Mutex<HashMap<String, AppUsage>>,
-    storage: Mutex<Storage>,
-}
-
-impl AppState {
-    fn new(app_handle: &AppHandle) -> Result<Self, StorageError> {
-        let storage = Storage::new(app_handle)?;
-        Ok(Self {
-            usage_data: Mutex::new(HashMap::new()),
-            storage: Mutex::new(storage),
-        })
-    }
-}
-
-#[tauri::command]
-async fn get_app_usage(state: tauri::State<'_, AppState>) -> Result<HashMap<String, AppUsage>, String> {
-    state.usage_data
-        .lock()
-        .map(|data: std::sync::MutexGuard<'_, HashMap<String, AppUsage>>| data.clone())
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn toggle_auto_start(enable: bool) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let platform = Windows;
-    #[cfg(target_os = "macos")]
-    let platform = MacOS;
-    #[cfg(target_os = "linux")]
-    let platform = Linux;
+// Set up the chat module
+fn setup_chat_module(app: &mut tauri::App, db: &Database) -> Result<(), Box<dyn std::error::Error>> {
+    // Create the chat database access layer
+    let chat_db = chat::db::ChatDb::new(db);
     
-    platform.set_auto_start(enable)
-}
-
-#[tauri::command]
-async fn get_auto_start_status() -> Result<bool, String> {
-    #[cfg(target_os = "windows")]
-    let platform = Windows;
-    #[cfg(target_os = "macos")]
-    let platform = MacOS;
-    #[cfg(target_os = "linux")]
-    let platform = Linux;
+    // Create the chat manager
+    let chat_manager = Arc::new(chat::manager::ChatManager::new(chat_db));
     
-    platform.is_auto_start_enabled()
-}
-
-#[tauri::command]
-async fn get_app_usage_stats(app_handle: tauri::AppHandle, range: String) -> Result<Vec<AppUsageStats>, String> {
-    let storage = Storage::new(&app_handle).map_err(|e| e.to_string())?;
-    storage.get_usage_stats(&range)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn record_app_usage(app_handle: tauri::AppHandle, record: AppUsageRecord) -> Result<(), String> {
-    let storage = Storage::new(&app_handle).map_err(|e| e.to_string())?;
-    storage.record_usage(record)
-        .map_err(|e| e.to_string())
-}
-
-async fn monitor_active_window(handle: tauri::AppHandle) {
-    tracing::info!("Starting window monitor...");
-    let window_monitor = platform::create_window_monitor();
+    // Create the WebSocket manager
+    let ws_manager = Arc::new(chat::websocket::WebSocketManager::new(chat_manager.clone()));
     
-    loop {
-        if let Some(process_name) = window_monitor.get_active_window() {
-            tracing::debug!("Detected active window: {}", process_name);
-            
-            let current_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-
-            let state = handle.state::<AppState>();
-            {
-                let mut data = state.usage_data.lock().unwrap();
-                let app_usage = data.entry(process_name.clone())
-                    .or_insert(AppUsage {
-                        name: process_name.clone(),
-                        total_time: 0,
-                        last_active: current_time,
-                    });
-
-                if current_time - app_usage.last_active <= 2 {
-                    app_usage.total_time += 1;
-                    tracing::debug!("Updating usage for {}: {} seconds", process_name, app_usage.total_time);
-                    
-                    let mut storage = state.storage.lock().unwrap();
-                    let record = AppUsageRecord {
-                        timestamp: chrono::Utc::now(),
-                        app_name: process_name.clone(),
-                        duration: 1,
-                    };
-                    
-                    if let Err(e) = storage.record_usage(record) {
-                        tracing::error!("Failed to record usage: {}", e);
-                    } else {
-                        tracing::info!("Successfully recorded usage for: {}", process_name);
-                    }
-                }
-                app_usage.last_active = current_time;
-
-                let data_clone = data.clone();
-                drop(data);
-                let _ = handle.emit("usage_updated", data_clone);
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
+    // Register the chat state
+    app.manage(chat::commands::ChatState {
+        manager: chat_manager,
+    });
+    
+    // Register the WebSocket manager
+    app.manage(ws_manager);
+    
+    // Get app handle
+    let app_handle = app.app_handle();
+    
+    // Handle payload
+    app_handle.listen_any("user_logged_in", move |event| {
+        // Handle user login event here
+        let payload = event.payload();
+        println!("User logged in: {}", payload);
+        
+    });
+    
+    let app_handle = app.app_handle();
+    app_handle.listen_any("user_logged_out", move |event| {
+        // Handle user logout event here
+        let payload= event.payload();
+        println!("User logged out: {}", payload);
+        
+    });
+    
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_file(true)
         .with_line_number(true)
         .init();
-
+    
     tracing::info!("Application starting...");
-
+    
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(rt) => {
             tracing::info!("Tokio runtime created successfully");
@@ -149,42 +70,58 @@ fn main() {
             std::process::exit(1);
         }
     };
-
+    
+    let db = runtime.block_on(db_init::init_database())?;
+    
+    let db = Arc::new(db);
+    let db_for_setup = db.clone();
+    
     let result = tauri::Builder::default()
-        .setup(|app| {
+        .plugin(tauri_plugin_shell::init())
+        
+        .setup(move |app| {
             let handle = app.handle();
             
-            // 在setup中初始化AppState
-            let app_state = AppState::new(&handle)
-                .expect("Failed to initialize app state");
-            app.manage(app_state);
+            // Initialize chat module
+            match setup_chat_module(app, &db_for_setup) {
+                Ok(_) => tracing::info!("Chat module initialized successfully"),
+                Err(e) => tracing::error!("Failed to initialize chat module: {}", e),
+            }
+            
+            // Initialize authentication module
+            match auth_commands::init(app) {
+                Ok(_) => tracing::info!("Authentication module initialized successfully"),
+                Err(e) => tracing::error!("Failed to initialize authentication module: {}", e),
+            }
             
             tracing::info!("App state initialized successfully");
             
-            // 启动监控任务
-            let handle_clone = handle.clone();
-            tauri::async_runtime::spawn(async move {
-                monitor_active_window(handle_clone).await;
-            });
-            
             tracing::info!("Tauri setup started");
-            #[cfg(debug_assertions)]
-            {
-                handle.plugin(tauri_plugin_shell::init())?;
-                tracing::info!("Debug plugins initialized");
-            }
             tracing::info!("Tauri setup completed");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_app_usage,
-            toggle_auto_start,
-            get_auto_start_status,
-            get_app_usage_stats,
-            record_app_usage
+            // Registration and authentication related commands
+            auth_commands::register_user,
+            auth_commands::login_with_email,
+            auth_commands::get_oauth_url,
+            auth_commands::handle_oauth_callback,
+            auth_commands::get_current_user,
+            auth_commands::logout,
+            auth_commands::refresh_token,
+            
+            // Chat related commands
+            chat_commands::create_conversation,
+            chat_commands::get_conversations,
+            chat_commands::send_message,
+            chat_commands::get_messages,
+            chat_commands::mark_as_read,
+            chat_commands::update_typing_status,
+            chat::websocket::initialize_chat_connection,
+            chat::websocket::send_chat_message,
         ])
         .run(tauri::generate_context!());
-
+    
     match result {
         Ok(_) => tracing::info!("Application exited normally"),
         Err(e) => {
@@ -192,4 +129,5 @@ fn main() {
             std::process::exit(1);
         }
     }
+    Ok(())
 }

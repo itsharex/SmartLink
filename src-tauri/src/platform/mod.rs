@@ -9,10 +9,10 @@ pub trait WindowInfo : Send + Sync{
     fn get_active_window(&self) -> Option<String>;
 }
 
-pub fn create_window_monitor() -> Box<dyn WindowInfo> {
+pub fn create_window_monitor() {
     #[cfg(target_os = "windows")]
     {
-        Box::new(windows::WindowsMonitor::new())
+        
     }
     #[cfg(target_os = "macos")]
     {
