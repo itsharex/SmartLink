@@ -9,7 +9,9 @@ import {
   User, Lock, Bell, Palette, Smartphone, Globe, Shield, LogOut, 
   Moon, Sun, LifeBuoy, Eye, EyeOff 
 } from 'lucide-react';
-
+import {logout} from '../../lib/authApi'
+import { useRouter } from "next/navigation";
+ 
 type SettingsTab = 'profile' | 'security' | 'notifications' | 'appearance' | 'language' | 'devices';
 
 // Initialize darkMode based on localStorage (or default to light mode)
@@ -24,6 +26,16 @@ const getInitialTheme = (): boolean => {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [darkMode, setDarkMode] = useState<boolean>(getInitialTheme);
+  const router = useRouter(); 
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push('/auth');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   // Update the document's class and persist theme change when darkMode state changes
   useEffect(() => {
@@ -223,7 +235,7 @@ export default function SettingsPage() {
                     </div>
                     
                     {!device.current && (
-                      <Button variant="outline" size="sm">退出登录</Button>
+                      <Button variant="outline" size="sm" onClick={handleLogout}>退出登录</Button>
                     )}
                   </div>
                 </div>
@@ -372,7 +384,7 @@ export default function SettingsPage() {
                   帮助中心
                 </Button>
                 
-                <Button variant="outline" className="w-full flex items-center justify-center gap-2 mt-3 text-red-400 hover:text-red-300">
+                <Button onClick={handleLogout} variant="outline" className="w-full flex items-center justify-center gap-2 mt-3 text-red-400 hover:text-red-300">
                   <LogOut size={18} />
                   退出登录
                 </Button>
