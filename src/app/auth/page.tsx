@@ -8,6 +8,7 @@ import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { FaStaylinked } from "react-icons/fa";
 import { Lock } from 'lucide-react';
+import { getOAuthUrl, User} from '@/lib/authApi';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,8 +16,19 @@ export default function AuthPage() {
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
-    // After authentication, navigate to the chat page
+  };
+
+  const handleAuthSuccess = (userData: any) => {
     router.push('/chat');
+  };
+
+  const handleOAuthLogin = async (provider: string) => {
+    try {
+      const authUrl = await getOAuthUrl(provider);
+      window.open(authUrl, '_blank', 'width=600,height=700');
+    } catch (err) {
+      console.error(`Failed to initiate ${provider} login:`, err);
+    }
   };
 
   return (
@@ -50,9 +62,12 @@ export default function AuthPage() {
             </h2>
 
             {isLogin ? (
-              <LoginForm handleAuth={handleAuth} />
+              <LoginForm 
+                handleAuth={handleAuth} // 传递 handleAuth
+                onLoginSuccess={handleAuthSuccess} 
+              />
             ) : (
-              <SignupForm handleAuth={handleAuth} />
+              <SignupForm onSignupSuccess={handleAuthSuccess} />
             )}
 
             <div className="relative my-6">
@@ -67,6 +82,7 @@ export default function AuthPage() {
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
+                onClick={() => handleOAuthLogin('google')}
                 className="py-2.5 px-4 border border-text-primary-5 bg-bg-tertiary-80 rounded-lg flex items-center justify-center gap-2"
               >
                 <FcGoogle />
@@ -74,6 +90,7 @@ export default function AuthPage() {
               </button>
               <button
                 type="button"
+                onClick={() => handleOAuthLogin('github')}
                 className="py-2.5 px-4 border border-text-primary-5 bg-bg-tertiary-80 rounded-lg flex items-center justify-center gap-2"
               >
                 <FaGithub />
