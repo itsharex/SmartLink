@@ -251,15 +251,14 @@ pub fn init(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         // Here we would configure the OAuthManager with the client IDs and secrets
         // For example:
-        // auth_manager.oauth_manager.configure(
-        //     OAuthConfig {
-        //         google_client_id,
-        //         google_client_secret,
-        //         github_client_id,
-        //         github_client_secret,
-        //         redirect_url,
-        //     }
-        // );
+        auth_manager.oauth_manager.configure(
+                google_client_id,
+                google_client_secret,
+                github_client_id,
+                github_client_secret,
+                redirect_url
+
+        );
 
         Ok(())
     })
