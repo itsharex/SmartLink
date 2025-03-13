@@ -4,7 +4,9 @@ import { registerUser } from '../../lib/authApi';
 
 interface SignupFormProps {   
   onSignupSuccess: (userData: any) => void; 
-}  
+}
+
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export default function SignupForm({ onSignupSuccess }: SignupFormProps) {   
   const [name, setName] = useState('');   
@@ -21,7 +23,12 @@ export default function SignupForm({ onSignupSuccess }: SignupFormProps) {
     if (!name || !email || !password) {       
       setError('All fields are required');       
       return;     
-    }          
+    }
+    
+    if (!EMAIL_REGEX.test(email)) {
+      setError('Please use the right email');
+      return;
+    }
     
     if (password !== confirmPassword) {       
       setError('Passwords do not match');       

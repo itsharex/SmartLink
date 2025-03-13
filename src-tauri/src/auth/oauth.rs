@@ -8,11 +8,9 @@ use oauth2::{
 };
 use oauth2::reqwest::async_http_client;
 use reqwest::Client as HttpClient;
-use mongodb::bson::{self, doc, Document};
-use std::sync::Arc;
+use mongodb::bson::{self};
 use std::collections::HashMap;
 use serde_json::Value;
-use url::Url;
 
 // OAuth管理器
 pub struct OAuthManager {
