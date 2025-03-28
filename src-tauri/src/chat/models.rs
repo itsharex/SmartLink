@@ -1,128 +1,88 @@
+// models.rs
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use uuid::Uuid;
 
-// 消息内容类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum MessageContentType {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum MessageType {
     Text,
     Image,
     File,
     Voice,
-    Video,
-    Location,
 }
 
-// 会话类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ConversationType {
-    Direct,
-    Group,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum MessageStatus {
+    Sent,
+    Delivered,
+    Read,
 }
 
-// 消息阅读状态
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReadStatus {
-    // 用户ID到阅读时间的映射
-    pub read_by: HashMap<String, DateTime<Utc>>,
-}
-
-// 加密元数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EncryptionInfo {
-    pub algorithm: String,
-    pub key_id: String,
-}
-
-// 消息模型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub id: String,
     pub conversation_id: String,
     pub sender_id: String,
     pub content: String,
-    pub content_type: MessageContentType,
+    pub content_type: MessageType,
     pub timestamp: DateTime<Utc>,
-    pub read_status: ReadStatus,
+    pub status: Option<MessageStatus>,
     pub encrypted: bool,
-    pub encryption_info: Option<EncryptionInfo>,
+    pub media_url: Option<String>,
 }
 
-// 会话最后一条消息预览
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LastMessagePreview {
-    pub id: String,
-    pub sender_id: String,
-    pub content: String,
-    pub content_type: MessageContentType,
-    pub timestamp: DateTime<Utc>,
-    pub read_by_all: bool,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum ConversationType {
+    Direct,
+    Group,
 }
 
-// 会话模型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Conversation {
     pub id: String,
-    pub conversation_type: ConversationType,
-    pub participants: Vec<String>, // 用户ID列表
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub last_message: Option<LastMessagePreview>,
-    pub encryption_key: Option<String>,
-    pub name: Option<String>, // 群聊名称
-    pub avatar_url: Option<String>, // 群聊头像
-}
-
-// WebSocket事件类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WebSocketEventType {
-    NewMessage,
-    MessageRead,
-    ConversationUpdated,
-    ParticipantTyping,
-    ParticipantOnlineStatus,
-}
-
-// WebSocket事件负载
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WebSocketEvent {
-    pub id: String,
-    pub event_type: WebSocketEventType,
-    pub conversation_id: String,
-    pub data: serde_json::Value,
-    pub timestamp: DateTime<Utc>,
-}
-
-// 请求和响应结构
-
-// 创建会话请求
-#[derive(Debug, Deserialize)]
-pub struct CreateConversationRequest {
+    pub name: Option<String>, 
     pub conversation_type: ConversationType,
     pub participants: Vec<String>,
-    pub name: Option<String>,
-    pub avatar_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub last_message: Option<Message>,
+    pub encryption_enabled: bool,
 }
 
-// 发送消息请求
-#[derive(Debug, Deserialize)]
-pub struct SendMessageRequest {
+// 用于创建新消息的简化结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NewMessage {
     pub conversation_id: String,
+    pub sender_id: String,
     pub content: String,
-    pub content_type: MessageContentType,
+    pub content_type: MessageType,
+    pub media_url: Option<String>,
+    pub encrypted: bool,
 }
 
-// 获取消息请求（带分页）
-#[derive(Debug, Deserialize)]
-pub struct GetMessagesRequest {
-    pub conversation_id: String,
-    pub limit: Option<usize>,
-    pub before_id: Option<String>, // 用于分页
+// 用于创建新会话的简化结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NewConversation {
+    pub name: Option<String>,
+    pub conversation_type: ConversationType,
+    pub participants: Vec<String>,
+    pub encryption_enabled: bool,
 }
 
-// 标记已读请求
-#[derive(Debug, Deserialize)]
-pub struct MarkAsReadRequest {
-    pub conversation_id: String,
+// 用于更新消息状态的结构
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageStatusUpdate {
     pub message_id: String,
+    pub user_id: String,
+    pub status: MessageStatus,
+}
+
+impl std::fmt::Display for MessageStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sent => write!(f, "Sent"),
+            Self::Delivered => write!(f, "Delivered"),
+            Self::Read => write!(f, "Read"),
+        }
+    }
 }

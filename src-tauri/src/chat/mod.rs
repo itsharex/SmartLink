@@ -1,5 +1,9 @@
+// mod.rs
+pub mod commands;
 pub mod db;
+pub mod encryption;
 pub mod manager;
 pub mod models;
-pub mod websocket;
-pub mod commands;
+
+pub use commands::*;
+pub use db::ChatDatabase;

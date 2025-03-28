@@ -2,6 +2,7 @@
 mod auth;
 mod chat;
 mod db_init;
+mod error;
 
 use std::sync::Arc;
 
@@ -12,22 +13,8 @@ use tauri::{Listener, Manager};
 
 // Set up the chat module
 fn setup_chat_module(app: &mut tauri::App, db: &Database) -> Result<(), Box<dyn std::error::Error>> {
-    // Create the chat database access layer
-    let chat_db = chat::db::ChatDb::new(db);
-    
-    // Create the chat manager
-    let chat_manager = Arc::new(chat::manager::ChatManager::new(chat_db));
-    
-    // Create the WebSocket manager
-    let ws_manager = Arc::new(chat::websocket::WebSocketManager::new(chat_manager.clone()));
-    
-    // Register the chat state
-    app.manage(chat::commands::ChatState {
-        manager: chat_manager,
-    });
-    
-    // Register the WebSocket manager
-    app.manage(ws_manager);
+    // 初始化聊天模块
+    chat_commands::init(app, Arc::new(db.clone()))?;
     
     // Get app handle
     let app_handle = app.app_handle();
@@ -111,14 +98,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             auth_commands::refresh_token,
             
             // Chat related commands
-            chat_commands::create_conversation,
             chat_commands::get_conversations,
+            chat_commands::create_conversation,
+            chat_commands::get_conversation,
             chat_commands::send_message,
             chat_commands::get_messages,
-            chat_commands::mark_as_read,
-            chat_commands::update_typing_status,
-            chat::websocket::initialize_chat_connection,
-            chat::websocket::send_chat_message,
+            chat_commands::update_message_status,
+            chat_commands::mark_message_read,
+            chat_commands::mark_conversation_read,
+            chat_commands::mark_conversation_delivered,
+            chat_commands::create_group_chat,
+            chat_commands::add_group_member,
+            chat_commands::remove_group_member,
+            chat_commands::get_unread_count,
+            chat_commands::get_online_participants,
         ])
         .run(tauri::generate_context!());
     

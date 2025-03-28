@@ -1,238 +1,267 @@
-use crate::chat::models::*;
+// db.rs
 use chrono::Utc;
+use futures::TryStreamExt;
 use mongodb::{
-    bson::{self, doc, to_bson},
+    bson::{doc, DateTime as BsonDateTime},
+    options::{FindOptions, UpdateOptions},
     Collection, Database,
 };
-use futures::stream::TryStreamExt;
-use std::collections::HashMap;
 use uuid::Uuid;
+use std::time::SystemTime;
 
-// MongoDB集合包装
-pub struct ChatDb {
-    messages: Collection<Message>,
-    conversations: Collection<Conversation>,
-    events: Collection<WebSocketEvent>,
+use crate::error::Error;
+use super::models::{Conversation, Message, MessageStatus, NewConversation, NewMessage};
+
+pub struct ChatDatabase {
+    pub messages_collection: Collection<Message>,
+    pub conversations_collection: Collection<Conversation>,
 }
 
-impl ChatDb {
-    pub fn new(db: &Database) -> Self {
+impl ChatDatabase {
+    pub fn new(db: Database) -> Self {
         Self {
-            messages: db.collection("messages"),
-            conversations: db.collection("conversations"),
-            events: db.collection("chat_events"),
+            messages_collection: db.collection("messages"),
+            conversations_collection: db.collection("conversations"),
         }
     }
 
-    // 创建新会话
-    pub async fn create_conversation(&self, request: &CreateConversationRequest) -> Result<Conversation, mongodb::error::Error> {
+    // 会话相关方法
+    pub async fn create_conversation(&self, new_conversation: NewConversation) -> Result<Conversation, Error> {
         let now = Utc::now();
         
         let conversation = Conversation {
             id: Uuid::new_v4().to_string(),
-            conversation_type: request.conversation_type.clone(),
-            participants: request.participants.clone(),
+            name: new_conversation.name,
+            conversation_type: new_conversation.conversation_type,
+            participants: new_conversation.participants,
             created_at: now,
             updated_at: now,
             last_message: None,
-            encryption_key: None, // 应由加密模块设置
-            name: request.name.clone(),
-            avatar_url: request.avatar_url.clone(),
+            encryption_enabled: new_conversation.encryption_enabled,
         };
-
-        self.conversations.insert_one(&conversation, None).await?;
+        
+        self.conversations_collection
+            .insert_one(&conversation, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to create conversation: {}", e)))?;
+        
         Ok(conversation)
     }
 
-    // 获取指定会话
-    pub async fn get_conversation(&self, conversation_id: &str) -> Result<Option<Conversation>, mongodb::error::Error> {
-        self.conversations.find_one(doc! { "id": conversation_id }, None).await
+    pub async fn get_conversation(&self, conversation_id: &str) -> Result<Option<Conversation>, Error> {
+        let filter = doc! { "id": conversation_id };
+        
+        let conversation = self.conversations_collection
+            .find_one(filter, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to get conversation: {}", e)))?;
+        
+        Ok(conversation)
     }
 
-    // 获取用户的所有会话
-    pub async fn get_conversations_for_user(&self, user_id: &str) -> Result<Vec<Conversation>, mongodb::error::Error> {
-        let filter = doc! { "participants": user_id };
-        let mut cursor = self.conversations.find(filter, None).await?;
+    pub async fn get_conversations_for_user(&self, user_id: &str) -> Result<Vec<Conversation>, Error> {
+        let filter = doc! { "participants": { "$in": [user_id] } };
+        let options = FindOptions::builder()
+            .sort(doc! { "updated_at": -1 })
+            .build();
         
-        let mut conversations = Vec::new();
-        while let Some(conversation) = cursor.try_next().await? {
-            conversations.push(conversation);
-        }
+        let cursor = self.conversations_collection
+            .find(filter, options)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to get conversations: {}", e)))?;
         
-        // 按最后消息时间排序（最新的在前）
-        conversations.sort_by(|a, b| {
-            let a_time = a.last_message.as_ref().map(|m| m.timestamp).unwrap_or(a.updated_at);
-            let b_time = b.last_message.as_ref().map(|m| m.timestamp).unwrap_or(b.updated_at);
-            b_time.cmp(&a_time)
-        });
+        let conversations = cursor
+            .try_collect()
+            .await
+            .map_err(|e| Error::Database(format!("Failed to collect conversations: {}", e)))?;
         
         Ok(conversations)
     }
 
-    // 发送新消息
-    pub async fn send_message(&self, user_id: &str, request: &SendMessageRequest) -> Result<Message, mongodb::error::Error> {
-        // 首先检查会话是否存在且用户是参与者
-        let conversation = match self.get_conversation(&request.conversation_id).await? {
-            Some(c) => {
-                if !c.participants.contains(&user_id.to_string()) {
-                    return Err(mongodb::error::Error::custom("用户不是该会话的参与者"));
-                }
-                c
-            },
-            None => return Err(mongodb::error::Error::custom("会话不存在")),
+    pub async fn update_conversation_last_message(&self, conversation_id: &str, message: &Message) -> Result<(), Error> {
+        let filter = doc! { "id": conversation_id };
+        
+        // 使用辅助函数转换时间
+        let bson_now = chrono_to_bson_datetime(Utc::now());
+        
+        let update = doc! {
+            "$set": {
+                "last_message": mongodb::bson::to_document(message)
+                    .map_err(|e| Error::Database(format!("Failed to serialize message: {}", e)))?,
+                "updated_at": bson_now
+            }
         };
+        
+        self.conversations_collection
+            .update_one(filter, update, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to update conversation: {}", e)))?;
+        
+        Ok(())
+    }
+
+    // 消息相关方法
+    pub async fn save_message(&self, new_message: NewMessage) -> Result<Message, Error> {
+        // 首先检查会话是否存在
+        let conversation = self.get_conversation(&new_message.conversation_id).await?
+            .ok_or_else(|| Error::NotFound(format!("Conversation not found: {}", new_message.conversation_id)))?;
         
         let now = Utc::now();
-        let message_id = Uuid::new_v4().to_string();
-        
-        // 创建已读状态，发送者自动标记为已读
-        let mut read_by = HashMap::new();
-        read_by.insert(user_id.to_string(), now);
-        
         let message = Message {
-            id: message_id,
-            conversation_id: request.conversation_id.clone(),
-            sender_id: user_id.to_string(),
-            content: request.content.clone(),
-            content_type: request.content_type.clone(),
+            id: Uuid::new_v4().to_string(),
+            conversation_id: new_message.conversation_id,
+            sender_id: new_message.sender_id,
+            content: new_message.content,
+            content_type: new_message.content_type,
             timestamp: now,
-            read_status: ReadStatus { read_by },
-            encrypted: false, // 应由加密模块设置
-            encryption_info: None, // 应由加密模块设置
+            status: Some(MessageStatus::Sent),
+            encrypted: new_message.encrypted,
+            media_url: new_message.media_url,
         };
         
-        // 插入消息
-        self.messages.insert_one(&message, None).await?;
-        
-        // 更新会话的最后一条消息和更新时间
-        let last_message = LastMessagePreview {
-            id: message.id.clone(),
-            sender_id: message.sender_id.clone(),
-            content: message.content.clone(),
-            content_type: message.content_type.clone(),
-            timestamp: message.timestamp,
-            read_by_all: false,
-        };
-        
-        self.conversations.update_one(
-            doc! { "id": request.conversation_id.clone() },
-            doc! { "$set": {
-                "last_message": to_bson(&last_message)?,
-                "updated_at": bson::DateTime::from_millis(now.timestamp_millis())
-            }},
-            None
-        ).await?;
+        self.messages_collection
+            .insert_one(&message, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to save message: {}", e)))?;
         
         Ok(message)
     }
 
-    // 获取会话消息（带分页）
-    pub async fn get_messages(&self, request: &GetMessagesRequest) -> Result<Vec<Message>, mongodb::error::Error> {
-        let limit = request.limit.unwrap_or(20);
+    pub async fn get_messages(&self, conversation_id: &str, limit: Option<u32>, before_id: Option<&str>) -> Result<Vec<Message>, Error> {
+        let mut filter = doc! { "conversation_id": conversation_id };
         
-        let mut filter = doc! { "conversation_id": &request.conversation_id };
-        
-        // 如果提供了before_id，添加到筛选条件用于分页
-        if let Some(before_id) = &request.before_id {
-            let before_message = self.messages.find_one(doc! { "id": before_id }, None).await?;
-            if let Some(msg) = before_message {
-                filter.insert("timestamp", doc! { "$lt": bson::DateTime::from_millis(msg.timestamp.timestamp_millis()) });
-            }
+        if let Some(before_id) = before_id {
+            // 获取指定消息的时间戳
+            let before_message = self.messages_collection
+                .find_one(doc! { "id": before_id }, None)
+                .await
+                .map_err(|e| Error::Database(format!("Failed to get reference message: {}", e)))?
+                .ok_or_else(|| Error::NotFound(format!("Reference message not found: {}", before_id)))?;
+            
+            // 使用辅助函数转换时间
+            let bson_timestamp = chrono_to_bson_datetime(before_message.timestamp);
+            filter.insert("timestamp", doc! { "$lt": bson_timestamp });
         }
         
-        let options = mongodb::options::FindOptions::builder()
+        let limit_value = limit.unwrap_or(50) as i64;
+        let options = FindOptions::builder()
             .sort(doc! { "timestamp": -1 })
-            .limit(limit as i64)
+            .limit(limit_value)
             .build();
         
-        let mut cursor = self.messages.find(filter, options).await?;
+        let cursor = self.messages_collection
+            .find(filter, options)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to get messages: {}", e)))?;
         
-        let mut messages = Vec::new();
-        while let Some(message) = cursor.try_next().await? {
-            messages.push(message);
-        }
+        let mut messages: Vec<Message> = cursor
+            .try_collect()
+            .await
+            .map_err(|e| Error::Database(format!("Failed to collect messages: {}", e)))?;
         
-        // 反转以获得最旧的消息在前
-        messages.reverse();
+        // 按时间顺序排序
+        messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
         
         Ok(messages)
     }
 
-    // 标记消息为已读
-    pub async fn mark_as_read(&self, user_id: &str, request: &MarkAsReadRequest) -> Result<bool, mongodb::error::Error> {
-        let now = Utc::now();
+    pub async fn update_message_status(&self, message_id: &str, user_id: &str, status: MessageStatus) -> Result<(), Error> {
+        // 确保只有消息的接收者可以更新状态
+        let message = self.messages_collection
+            .find_one(doc! { "id": message_id }, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to find message: {}", e)))?
+            .ok_or_else(|| Error::NotFound(format!("Message not found: {}", message_id)))?;
         
-        // 更新消息的已读状态
-        let result = self.messages.update_one(
-            doc! { 
-                "id": &request.message_id,
-                "conversation_id": &request.conversation_id
-            },
-            doc! { "$set": { format!("read_status.read_by.{}", user_id): bson::DateTime::from_millis(now.timestamp_millis()) } },
-            None
-        ).await?;
+        // 获取会话以检查用户是否是参与者
+        let conversation = self.get_conversation(&message.conversation_id).await?
+            .ok_or_else(|| Error::NotFound(format!("Conversation not found: {}", message.conversation_id)))?;
         
-        // 如果消息已更新，还需检查是否需要更新会话的最后一条消息
-        if result.modified_count > 0 {
-            let conversation = self.get_conversation(&request.conversation_id).await?;
-            if let Some(conv) = conversation {
-                if let Some(last_msg) = &conv.last_message {
-                    if last_msg.id == request.message_id {
-                        // 获取更新后的消息，检查是否所有参与者都已读
-                        let message = self.messages.find_one(doc! { "id": &request.message_id }, None).await?;
-                        if let Some(msg) = message {
-                            let all_read = conv.participants.iter().all(|p| msg.read_status.read_by.contains_key(p));
-                            
-                            // 如果需要，更新last_message.read_by_all
-                            if all_read {
-                                self.conversations.update_one(
-                                    doc! { "id": &request.conversation_id },
-                                    doc! { "$set": { "last_message.read_by_all": true } },
-                                    None
-                                ).await?;
-                            }
-                        }
-                    }
-                }
-            }
+        // 确保用户是会话参与者
+        if !conversation.participants.contains(&user_id.to_string()) {
+            return Err(Error::Authentication(format!(
+                "User {} is not a participant in conversation {}",
+                user_id, message.conversation_id
+            )));
         }
         
-        Ok(result.modified_count > 0)
-    }
-
-    // 存储离线用户的事件
-    pub async fn store_event(&self, event: &WebSocketEvent) -> Result<(), mongodb::error::Error> {
-        self.events.insert_one(event, None).await?;
+        // 不允许发送者更改已读状态
+        if message.sender_id == user_id && status == MessageStatus::Read {
+            return Err(Error::Validation("Sender cannot mark their own message as read".to_string()));
+        }
+        
+        // 更新消息状态
+        let filter = doc! { "id": message_id };
+        let update = doc! {
+            "$set": { "status": status.to_string() }
+        };
+        
+        self.messages_collection
+            .update_one(filter, update, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to update message status: {}", e)))?;
+        
         Ok(())
     }
 
-    // 获取用户的待处理事件
-    pub async fn get_pending_events(&self, user_id: &str) -> Result<Vec<WebSocketEvent>, mongodb::error::Error> {
-        // 获取用户参与的所有会话
-        let conversations = self.get_conversations_for_user(user_id).await?;
-        let conversation_ids: Vec<String> = conversations.iter().map(|c| c.id.clone()).collect();
+    pub async fn delete_message(&self, message_id: &str) -> Result<(), Error> {
+        let filter = doc! { "id": message_id };
         
-        if conversation_ids.is_empty() {
-            return Ok(Vec::new());
+        let result = self.messages_collection
+            .delete_one(filter, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to delete message: {}", e)))?;
+        
+        if result.deleted_count == 0 {
+            return Err(Error::NotFound(format!("Message not found: {}", message_id)));
         }
         
-        // 查询这些会话的事件
-        let filter = doc! { "conversation_id": { "$in": &conversation_ids } };
-        let mut cursor = self.events.find(filter, None).await?;
-        
-        let mut events = Vec::new();
-        while let Some(event) = cursor.try_next().await? {
-            events.push(event);
-        }
-        
-        Ok(events)
-    }
-
-    // 删除已投递的事件
-    pub async fn delete_events(&self, event_ids: &[String]) -> Result<(), mongodb::error::Error> {
-        if !event_ids.is_empty() {
-            self.events.delete_many(doc! { "id": { "$in": event_ids } }, None).await?;
-        }
         Ok(())
     }
+    
+    // 额外添加的实用方法
+    pub async fn mark_messages_as_delivered(&self, conversation_id: &str, user_id: &str) -> Result<u64, Error> {
+        // 标记所有发给用户但尚未标记为已送达的消息
+        let filter = doc! {
+            "conversation_id": conversation_id,
+            "sender_id": { "$ne": user_id }, // 非用户发送的消息
+            "status": { "$eq": "Sent" } // 仅更新已发送但未送达的消息
+        };
+        
+        let update = doc! {
+            "$set": { "status": "Delivered" }
+        };
+        
+        let options = UpdateOptions::builder()
+            .build();
+        
+        let result = self.messages_collection
+            .update_many(filter, update, Some(options))
+            .await
+            .map_err(|e| Error::Database(format!("Failed to mark messages as delivered: {}", e)))?;
+        
+        Ok(result.modified_count)
+    }
+    
+    pub async fn get_unread_message_count(&self, user_id: &str) -> Result<u64, Error> {
+        // 获取所有发给用户但尚未阅读的消息数量
+        let filter = doc! {
+            "receiver_id": user_id,
+            "status": { "$ne": "Read" }
+        };
+        
+        let count = self.messages_collection
+            .count_documents(filter, None)
+            .await
+            .map_err(|e| Error::Database(format!("Failed to count unread messages: {}", e)))?;
+        
+        Ok(count)
+    }
+}
+
+fn chrono_to_bson_datetime(dt: chrono::DateTime<Utc>) -> BsonDateTime {
+    let system_time = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(dt.timestamp() as u64)
+        + std::time::Duration::from_nanos(dt.timestamp_subsec_nanos() as u64);
+    
+    BsonDateTime::from_system_time(system_time)
 }
