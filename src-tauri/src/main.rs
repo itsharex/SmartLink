@@ -40,7 +40,7 @@ fn setup_chat_module(app: &mut tauri::App, db: &Database) -> Result<(), Box<dyn 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .with_file(true)
         .with_line_number(true)
         .init();

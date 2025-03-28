@@ -1,7 +1,6 @@
 // src-tauri/src/chat/commands.rs
 use crate::error::Error;
 use mongodb::Database;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{Manager, State};
 use tracing::{debug, info};
