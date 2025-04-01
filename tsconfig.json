@@ -27,7 +27,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
-  ],
+, "src/app/api/groqChat"  ],
   "exclude": [
     "node_modules"
   ]

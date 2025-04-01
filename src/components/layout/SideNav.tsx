@@ -9,6 +9,7 @@ import { BsFillCameraFill } from "react-icons/bs";
 import { IoNotifications } from "react-icons/io5";
 import { RiSettings3Fill } from "react-icons/ri";
 import { FaCompass } from "react-icons/fa";
+import { TbMessageChatbotFilled } from "react-icons/tb";
 
 
 type NavItem = {
@@ -37,6 +38,7 @@ const SideNav: React.FC<SideNavProps> = ({ userName, userAvatar }) => {
     { icon: <FaCompass size={22} />, label: 'Discover', path: '/discovery' },
     { icon: <BsFillCameraFill size={22} />, label: 'Moments', path: '/moments' },
     { icon: <IoNotifications size={22} />, label: 'Notifications', path: '/notifications', badge: 2 },
+    { icon: <TbMessageChatbotFilled size={22} />, label: 'AI Chatbot', path: '/ai-chat' },
   ];
 
   // Status display text
