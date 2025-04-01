@@ -1,13 +1,13 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
 use tokio_tungstenite::{
     connect_async,
-    tungstenite::{Error as WsError, Message},
+    tungstenite::Message,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use url::Url;
 
 /// WebSocket连接状态

@@ -7,7 +7,7 @@ use tracing::{debug, info};
 
 use super::db::ChatDatabase;
 use super::manager::ChatManager;
-use super::models::{Conversation, Message, MessageStatus, NewConversation, NewMessage, ConversationType};
+use super::models::{Conversation, Message, NewConversation, NewMessage, ConversationType};
 use super::websocket::{ConnectionStatus, WebSocketConfig, WebSocketState};
 
 /// 应用状态，包含聊天管理器
