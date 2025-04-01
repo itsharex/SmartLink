@@ -70,15 +70,15 @@ export default function AuthPage() {
               <SignupForm onSignupSuccess={handleAuthSuccess} />
             )}
 
-            <div className="relative my-6">
+            {/* <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t-[1.5px] border-text-primary-10"></div>
               </div>
               <div className="relative flex justify-center">
                 <span className="px-2 bg-bg-primary text-text-primary-70 text-sm">Or</span>
               </div>
-            </div>
-
+            </div> */}
+{/* 
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
@@ -96,7 +96,7 @@ export default function AuthPage() {
                 <FaGithub />
                 <span>GitHub</span>
               </button>
-            </div>
+            </div> */}
 
             <p className="text-center mt-6 text-text-primary-30 text-sm">
               {isLogin ? 'Don’t have an account?' : 'Already have an account?'}{' '}
