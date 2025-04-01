@@ -15,6 +15,9 @@ use tauri::{Listener, Manager};
 fn setup_chat_module(app: &mut tauri::App, db: &Database) -> Result<(), Box<dyn std::error::Error>> {
     // 初始化聊天模块
     chat_commands::init(app, Arc::new(db.clone()))?;
+
+    // WebSocketState管理
+    app.manage(chat::websocket::WebSocketState::new());
     
     // Get app handle
     let app_handle = app.app_handle();
@@ -112,6 +115,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             chat_commands::remove_group_member,
             chat_commands::get_unread_count,
             chat_commands::get_online_participants,
+            chat_commands::initialize_websocket,
+            chat_commands::connect_websocket,
+            chat_commands::disconnect_websocket,
+            chat_commands::get_websocket_status,
+            chat_commands::send_websocket_message,
+            chat_commands::send_chat_message,
+            chat_commands::send_webrtc_signal,
+            chat_commands::send_typing_indicator,
+
         ])
         .run(tauri::generate_context!());
     
