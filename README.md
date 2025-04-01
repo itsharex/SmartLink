@@ -19,7 +19,7 @@ SmartLink 是一款基于 Tauri 2.0 框架的现代化桌面聊天应用，融�
 
 - **前端**: Next.js, React, TypeScript, TailwindCSS
 - **后端**: Tauri, Rust
-- **数据存储**: Firebase/本地SQLite
+- **数据存储**: MongoDB
 - **通信**: WebSocket, WebRTC
 - **加密**: Rust加密库
 
@@ -35,7 +35,7 @@ SmartLink 是一款基于 Tauri 2.0 框架的现代化桌面聊天应用，融�
 
 1. 克隆仓库
    ```bash
-   git clone https://github.com/yourusername/smartlink.git
+   git clone https://github.com/Erio-Harrison/smartlink.git
    cd smartlink
    ```
 
@@ -51,12 +51,12 @@ SmartLink 是一款基于 Tauri 2.0 框架的现代化桌面聊天应用，融�
 3. 开发模式启动
    ```bash
    # 启动 Next.js 开发服务器和 Tauri 应用
-   npm run tauri dev
+   cargo tauri dev
    ```
 
 4. 构建应用
    ```bash
-   npm run tauri build
+   cargo tauri build
    ```
 
 ## 📂 项目结构
@@ -80,7 +80,7 @@ SmartLink/
 
 ## 🚀 贡献指南
 
-我们欢迎任何形式的贡献！请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与项目开发。
+我们欢迎任何形式的贡献!
 
 ## 📄 许可证
 
