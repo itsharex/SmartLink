@@ -1,4 +1,3 @@
-// components/ai-chat/AiChatPage.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -10,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 export type AiChat = {
   id: string;
   topic: string;
-  summary: string;
+  summary: string; // (Unused now for the list view)
   time: string;
 };
 
@@ -21,31 +20,42 @@ export type AiMessage = {
   timestamp: Date;
 };
 
-const sampleAiChats: AiChat[] = [
-  { id: 'ai-1', topic: 'Travel Recommendations', summary: 'Find the best destinations for summer vacations', time: '10:30 AM' },
-  { id: 'ai-2', topic: 'Recipe Ideas', summary: 'Quick recipes based on your ingredients', time: 'Yesterday' },
-  { id: 'ai-3', topic: 'Fitness Tips', summary: 'New workout routines and diet plans', time: 'Monday' },
-];
-
 export default function AiChatPage() {
+  // Start with an empty list of chats and messages.
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [aiChats, setAiChats] = useState<AiChat[]>(sampleAiChats);
-  const [aiMessages, setAiMessages] = useState<Record<string, AiMessage[]>>({
-    'ai-1': [],
-    'ai-2': [],
-    'ai-3': [],
-  });
+  const [aiChats, setAiChats] = useState<AiChat[]>([]);
+  const [aiMessages, setAiMessages] = useState<Record<string, AiMessage[]>>({});
 
-  // Handle selecting a chat conversation from the list
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
   };
 
-  // When a user sends a message, update local state and stream the AI response.
+  // Function to add a new chat.
+  const handleAddChat = () => {
+    const newChat: AiChat = {
+      id: uuidv4(),
+      topic: 'New Chat',
+      summary: 'No summary yet', // This field is no longer used for display.
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setAiChats(prev => [newChat, ...prev]);
+    setAiMessages(prev => ({ ...prev, [newChat.id]: [] }));
+    setSelectedChatId(newChat.id);
+  };
+
+  // Function to update the chat title.
+  const handleUpdateChatTitle = (chatId: string, newTitle: string) => {
+    setAiChats(prev =>
+      prev.map(chat =>
+        chat.id === chatId ? { ...chat, topic: newTitle } : chat
+      )
+    );
+  };
+
   const handleSendAiMessage = async (content: string) => {
     if (!selectedChatId) return;
     
-    // Create and add the user's message locally.
+    // Add the user's message.
     const userMessage: AiMessage = {
       id: uuidv4(),
       content,
@@ -76,7 +86,7 @@ export default function AiChatPage() {
         return;
       }
       
-      // Add a temporary streaming message.
+      // Add a temporary streaming assistant message.
       setAiMessages(prev => ({
         ...prev,
         [selectedChatId]: [
@@ -96,7 +106,6 @@ export default function AiChatPage() {
         if (value) {
           const chunk = decoder.decode(value);
           aiMessageContent += chunk;
-          // Update the temporary streaming assistant message.
           setAiMessages(prev => ({
             ...prev,
             [selectedChatId]: prev[selectedChatId].map(msg =>
@@ -108,7 +117,6 @@ export default function AiChatPage() {
         }
       }
       
-      // Once streaming is complete, replace the temporary ID with a new one.
       setAiMessages(prev => ({
         ...prev,
         [selectedChatId]: prev[selectedChatId].map(msg =>
@@ -117,12 +125,23 @@ export default function AiChatPage() {
             : msg
         )
       }));
+
+      // Optionally, update the chat title if it's a new chat.
+      setAiChats(prev => prev.map(chat => {
+        if (chat.id === selectedChatId && chat.topic === 'New Chat') {
+          const words = aiMessageContent.split(' ');
+          const title = words.slice(0, 5).join(' ') + (words.length > 5 ? '...' : '');
+          return { ...chat, topic: title };
+        }
+        return chat;
+      }));
+      
     } catch (error) {
       console.error("Error fetching AI response:", error);
     }
   };
 
-  // Auto-select the first chat if none is selected.
+  // Auto-select the first chat if available.
   useEffect(() => {
     if (aiChats.length > 0 && !selectedChatId) {
       setSelectedChatId(aiChats[0].id);
@@ -134,8 +153,11 @@ export default function AiChatPage() {
       <SideNav userName="User" />
       <AiChatList 
         chats={aiChats} 
+        aiMessages={aiMessages}
         onSelectChat={handleSelectChat} 
-        selectedChatId={selectedChatId || undefined} 
+        selectedChatId={selectedChatId || undefined}
+        onAddChat={handleAddChat}
+        onUpdateChatTitle={handleUpdateChatTitle}
       />
       {selectedChatId ? (
         <div className="flex-1">
@@ -146,9 +168,9 @@ export default function AiChatPage() {
           />
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center bg-bg-secondary">
-          <div className="text-center text-text-secondary">
-            <p className="text-xl mb-2">Select a conversation to start chatting with AI</p>
+        <div className="flex-1 flex items-center justify-center bg-bg-tertiary">
+          <div className="text-center text-text-primary">
+            <p className="text-md mb-2">Select a conversation or start a new conversation to chat with AI</p>
           </div>
         </div>
       )}

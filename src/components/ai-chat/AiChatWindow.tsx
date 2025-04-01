@@ -1,7 +1,6 @@
-// components/ai-chat/AiChatWindow.tsx
 import React, { useRef, useEffect } from 'react';
 import ChatInput from '@/components/chat/ChatInput';
-import MessageBubble from '@/components/chat/MessageBubble';
+import MessageBubble from '@/components/ai-chat/MessageBubble';
 
 export type AiMessage = {
     id: string;
