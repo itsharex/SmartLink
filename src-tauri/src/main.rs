@@ -1,6 +1,7 @@
 // src-tauri/src/main.rs
 mod auth;
 mod chat;
+mod contacts;
 mod db_init;
 mod error;
 
@@ -8,8 +9,15 @@ use std::sync::Arc;
 
 use auth::commands as auth_commands;
 use chat::commands as chat_commands;
+use contacts::commands as contacts_commands;
 use mongodb::Database;
 use tauri::{Listener, Manager};
+
+fn setup_contacts_module(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // 初始化联系人模块
+    contacts_commands::init(app)?;
+    Ok(())
+}
 
 // Set up the chat module
 fn setup_chat_module(app: &mut tauri::App, db: &Database) -> Result<(), Box<dyn std::error::Error>> {
@@ -62,8 +70,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     let db = runtime.block_on(db_init::init_database())?;
-    
-    let db = Arc::new(db);
     let db_for_setup = db.clone();
     
     let result = tauri::Builder::default()
@@ -71,6 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         .setup(move |app| {
             let handle = app.handle();
+            app.manage(db_for_setup.clone());
             
             // Initialize chat module
             match setup_chat_module(app, &db_for_setup) {
@@ -82,6 +89,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match auth_commands::init(app) {
                 Ok(_) => tracing::info!("Authentication module initialized successfully"),
                 Err(e) => tracing::error!("Failed to initialize authentication module: {}", e),
+            }
+
+            // 初始化联系人模块
+            match setup_contacts_module(app) {
+                Ok(_) => tracing::info!("Contacts module initialized successfully"),
+                Err(e) => tracing::error!("Failed to initialize contacts module: {}", e),
             }
             
             tracing::info!("App state initialized successfully");
@@ -123,6 +136,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             chat_commands::send_chat_message,
             chat_commands::send_webrtc_signal,
             chat_commands::send_typing_indicator,
+
+            // Contract related commands
+            contacts_commands::get_contacts,
+            contacts_commands::get_favorite_contacts,
+            contacts_commands::search_users,
+            contacts_commands::send_friend_request,
+            contacts_commands::get_friend_requests,
+            contacts_commands::accept_friend_request,
+            contacts_commands::reject_friend_request,
+            contacts_commands::add_contact_to_favorites,
+            contacts_commands::remove_contact_from_favorites,
 
         ])
         .run(tauri::generate_context!());

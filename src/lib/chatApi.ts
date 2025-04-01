@@ -192,7 +192,7 @@ export async function getMessages(
   });
 }
 
-export async function updateMessageStatus(
+export async function updateLocalMessageStatus(
   messageId: string,
   status: MessageStatus
 ): Promise<void> {
@@ -315,6 +315,231 @@ export async function getOnlineParticipants(conversationId: string): Promise<str
     return invoke<string[]>('get_online_participants', {
       conversation_id: conversationId,
       user_id: user.id
+    });
+  });
+}
+
+// WebSocket 相关功能
+export async function initializeWebSocket(serverUrl?: string): Promise<void> {
+  return withAuth(async () => {
+    return invoke<void>('initialize_websocket', { 
+      server_url: serverUrl 
+    });
+  });
+}
+
+export async function connectWebSocket(): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('connect_websocket', { 
+      user_id: user.id 
+    });
+  });
+}
+
+export async function disconnectWebSocket(): Promise<void> {
+  return withAuth(async () => {
+    return invoke<void>('disconnect_websocket');
+  });
+}
+
+export async function getWebSocketStatus(): Promise<ConnectionStatus> {
+  return withAuth(async () => {
+    return invoke<ConnectionStatus>('get_websocket_status');
+  });
+}
+
+export async function sendWebSocketMessage(message: string): Promise<void> {
+  return withAuth(async () => {
+    return invoke<void>('send_websocket_message', { message });
+  });
+}
+
+export async function sendChatMessage(
+  conversationId: string,
+  content: string,
+  recipientId?: string,
+  messageType: string = MessageType.Text
+): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('send_chat_message', {
+      conversation_id: conversationId,
+      recipient_id: recipientId,
+      content,
+      sender_id: user.id,
+      message_type: messageType
+    });
+  });
+}
+
+export async function sendWebRTCSignal(
+  recipientId: string,
+  signalType: string,
+  signalData: any,
+  conversationId?: string
+): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('send_webrtc_signal', {
+      recipient_id: recipientId,
+      conversation_id: conversationId,
+      signal_type: signalType,
+      signal_data: signalData,
+      sender_id: user.id
+    });
+  });
+}
+
+export async function updateMessageStatus(
+  messageId: string,
+  conversationId: string,
+  originalSenderId: string,
+  status: 'read' | 'delivered'
+): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('update_message_status', {
+      message_id: messageId,
+      conversation_id: conversationId,
+      original_sender_id: originalSenderId,
+      status,
+      user_id: user.id
+    });
+  });
+}
+
+export async function sendTypingIndicator(
+  conversationId: string,
+  isTyping: boolean,
+  recipients: string[]
+): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('send_typing_indicator', {
+      conversation_id: conversationId,
+      is_typing: isTyping,
+      user_id: user.id,
+      recipients
+    });
+  });
+}
+
+// 添加 ConnectionStatus 枚举
+export enum ConnectionStatus {
+  Connected = 'Connected',
+  Connecting = 'Connecting',
+  Disconnected = 'Disconnected',
+  Error = 'Error'
+}
+
+// 在src/lib/chatApi.ts中添加以下函数和接口
+
+export interface User {
+  id: string;
+  name: string;
+  email?: string;
+  avatar_url?: string;
+  status?: 'online' | 'offline' | 'away' | 'busy';
+}
+
+export interface FriendRequest {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+  sender?: User;
+}
+
+// 获取所有联系人
+export async function getContacts(): Promise<User[]> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<User[]>('get_contacts', { 
+      user_id: user.id 
+    });
+  });
+}
+
+// 获取收藏的联系人
+export async function getFavoriteContacts(): Promise<User[]> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<User[]>('get_favorite_contacts', { 
+      user_id: user.id 
+    });
+  });
+}
+
+// 搜索用户
+export async function searchUsers(query: string): Promise<User[]> {
+  return withAuth(async () => {
+    return invoke<User[]>('search_users', { query });
+  });
+}
+
+// 发送好友请求
+export async function sendFriendRequest(recipientId: string): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('send_friend_request', {
+      sender_id: user.id,
+      recipient_id: recipientId
+    });
+  });
+}
+
+// 获取好友请求列表
+export async function getFriendRequests(): Promise<FriendRequest[]> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<FriendRequest[]>('get_friend_requests', {
+      user_id: user.id
+    });
+  });
+}
+
+// 接受好友请求
+export async function acceptFriendRequest(requestId: string): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('accept_friend_request', {
+      user_id: user.id,
+      request_id: requestId
+    });
+  });
+}
+
+// 拒绝好友请求
+export async function rejectFriendRequest(requestId: string): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('reject_friend_request', {
+      user_id: user.id,
+      request_id: requestId
+    });
+  });
+}
+
+// 将联系人添加到收藏
+export async function addContactToFavorites(contactId: string): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('add_contact_to_favorites', {
+      user_id: user.id,
+      contact_id: contactId
+    });
+  });
+}
+
+// 从收藏中移除联系人
+export async function removeContactFromFavorites(contactId: string): Promise<void> {
+  return withAuth(async () => {
+    const user = await getCurrentUser();
+    return invoke<void>('remove_contact_from_favorites', {
+      user_id: user.id,
+      contact_id: contactId
     });
   });
 }

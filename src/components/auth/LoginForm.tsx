@@ -1,19 +1,20 @@
-// components/auth/LoginForm.tsx
 'use client';
 
 import React, { useState } from 'react';
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
 import { loginWithEmail } from '../../lib/authApi';
 
 interface LoginFormProps {
   handleAuth: (e: React.FormEvent) => void;
-  onLoginSuccess: (userData: any) => void; 
+  onLoginSuccess: (userData: any) => void;
 }
 
-export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
+export default function LoginForm({ handleAuth, onLoginSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { setUser } = useAuth(); // Get setUser from AuthContext
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,12 +28,17 @@ export default function LoginForm({ onLoginSuccess }: LoginFormProps) {
     setError('');
     
     try {
-      const response = await loginWithEmail(email, password);
+      const user = await loginWithEmail(email, password); // Expect authUser
+      console.log("Logged in user:", user);
       
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      // Store user in localStorage (optional)
+      localStorage.setItem('user', JSON.stringify(user));
       
-      onLoginSuccess(response.user);
+      // Update AuthProvider state
+      setUser(user);
+      
+      // Trigger onLoginSuccess (e.g., redirect)
+      onLoginSuccess(user);
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Failed to login');
