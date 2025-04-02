@@ -119,7 +119,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             chat_commands::get_conversation,
             chat_commands::send_message,
             chat_commands::get_messages,
-            chat_commands::update_message_status,
             chat_commands::mark_message_read,
             chat_commands::mark_conversation_read,
             chat_commands::mark_conversation_delivered,
@@ -134,8 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             chat_commands::get_websocket_status,
             chat_commands::send_websocket_message,
             chat_commands::send_chat_message,
-            chat_commands::send_webrtc_signal,
-            chat_commands::send_typing_indicator,
+            chat_commands::before_exit,
 
             // Contract related commands
             contacts_commands::get_contacts,

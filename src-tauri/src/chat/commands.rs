@@ -1,6 +1,9 @@
+use crate::chat::models::{MessageStatus, MessageType};
 // src-tauri/src/chat/commands.rs
 use crate::error::Error;
+use chrono::Utc;
 use mongodb::Database;
+use uuid::Uuid;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 use tracing::{debug, info};
@@ -236,19 +239,22 @@ pub async fn get_online_participants(
     state.chat_manager.get_online_participants(&conversation_id, &user_id).await
 }
 
-/// 初始化WebSocket连接
+/// 初始化WebSocket客户端
 #[tauri::command]
 pub async fn initialize_websocket(
-    app_handle: AppHandle,
-    server_url: Option<String>,
+    app: tauri::AppHandle,
+    server_url: String,
+    heartbeat_interval_ms: Option<u64>,
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
+    debug!("Initializing WebSocket client with server URL: {}", server_url);
+    
     let config = WebSocketConfig {
-        server_url: server_url.unwrap_or_else(|| "ws://localhost:8080/ws".to_string()),
-        ..WebSocketConfig::default()
+        server_url,
+        heartbeat_interval_ms: heartbeat_interval_ms.unwrap_or(30000),
     };
     
-    websocket_state.initialize(app_handle, config).await;
+    websocket_state.initialize(app, config).await;
     Ok(())
 }
 
@@ -258,6 +264,7 @@ pub async fn connect_websocket(
     user_id: String,
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
+    debug!("Connecting to WebSocket server as user: {}", user_id);
     websocket_state.connect(user_id).await
 }
 
@@ -266,6 +273,7 @@ pub async fn connect_websocket(
 pub async fn disconnect_websocket(
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
+    debug!("Disconnecting from WebSocket server");
     websocket_state.disconnect().await
 }
 
@@ -273,8 +281,9 @@ pub async fn disconnect_websocket(
 #[tauri::command]
 pub async fn get_websocket_status(
     websocket_state: State<'_, WebSocketState>,
-) -> Result<ConnectionStatus, String> {
-    websocket_state.get_status().await
+) -> Result<String, String> {
+    let status = websocket_state.get_status().await?;
+    Ok(format!("{:?}", status))
 }
 
 /// 发送WebSocket消息
@@ -283,122 +292,59 @@ pub async fn send_websocket_message(
     message: String,
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
-    websocket_state.send_message(message).await
+    debug!("Sending WebSocket message");
+    websocket_state.inner().send_message(message).await
 }
 
-/// 发送聊天消息 - 便捷包装器
+/// 发送聊天消息
 #[tauri::command]
 pub async fn send_chat_message(
     conversation_id: String,
-    recipient_id: Option<String>,
     content: String,
-    sender_id: String,
-    message_type: String,
-    websocket_state: State<'_, WebSocketState>,
-) -> Result<(), String> {
-    // 构建标准化的聊天消息格式
-    let message = serde_json::json!({
-        "message_type": "NewMessage",
-        "sender_id": sender_id,
-        "conversation_id": conversation_id,
-        "recipient_id": recipient_id,
-        "data": {
-            "content": content,
-            "content_type": message_type,
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        },
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    });
-    
-    // 发送消息
-    websocket_state.send_message(message.to_string()).await
-}
-
-/// 发送通话信令 - 用于WebRTC信令交换
-#[tauri::command]
-pub async fn send_webrtc_signal(
-    recipient_id: String,
-    conversation_id: Option<String>,
-    signal_type: String,
-    signal_data: serde_json::Value,
-    sender_id: String,
-    websocket_state: State<'_, WebSocketState>,
-) -> Result<(), String> {
-    // 构建WebRTC信令消息
-    let message = serde_json::json!({
-        "message_type": "WebRTCSignal",
-        "sender_id": sender_id,
-        "recipient_id": recipient_id,
-        "conversation_id": conversation_id,
-        "data": {
-            "signal_type": signal_type,
-            "signal_data": signal_data,
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        },
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    });
-    
-    // 发送信令
-    websocket_state.send_message(message.to_string()).await
-}
-
-/// 更新消息状态（已读/已送达）
-#[tauri::command]
-pub async fn update_message_status(
-    message_id: String,
-    conversation_id: String,
-    original_sender_id: String,
-    status: String, // "read" or "delivered"
+    content_type: String,  // 仍然接收字符串参数
+    encrypted: Option<bool>,
+    media_url: Option<String>,
     user_id: String,
     websocket_state: State<'_, WebSocketState>,
-) -> Result<(), String> {
-    // 确定消息类型
-    let message_type = match status.as_str() {
-        "read" => "MessageRead",
-        "delivered" => "MessageDelivered",
-        _ => return Err(format!("Invalid status: {}", status)),
+) -> Result<Message, String> {
+    debug!("Sending chat message to conversation: {}", conversation_id);
+    
+    // 将字符串转换为 MessageType 枚举
+    let message_type = match content_type.to_lowercase().as_str() {
+        "text" => MessageType::Text,
+        "image" => MessageType::Image,
+        "file" => MessageType::File,
+        "voice" => MessageType::Voice,
+        _ => {
+            debug!("Unknown content type: {}, defaulting to Text", content_type);
+            MessageType::Text
+        }
     };
     
-    // 构建状态更新消息
-    let message = serde_json::json!({
-        "message_type": message_type,
-        "sender_id": user_id,
-        "recipient_id": original_sender_id,
-        "conversation_id": conversation_id,
-        "message_id": message_id,
-        "data": {
-            "originalSenderId": original_sender_id,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        },
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    });
+    // 创建消息
+    let message = Message {
+        id: Uuid::new_v4().to_string(),
+        conversation_id,
+        sender_id: user_id,
+        content,
+        content_type: message_type,
+        timestamp: Utc::now(),
+        status: Some(MessageStatus::Sent),
+        encrypted: encrypted.unwrap_or(false),
+        media_url,
+    };
     
-    // 发送状态更新
-    websocket_state.send_message(message.to_string()).await
+    // 发送消息
+    websocket_state.send_chat_message(message.clone()).await?;
+    
+    Ok(message)
 }
 
-/// 发送"正在输入"状态
+/// 应用退出前保存消息
 #[tauri::command]
-pub async fn send_typing_indicator(
-    conversation_id: String,
-    is_typing: bool,
-    user_id: String,
-    recipients: Vec<String>,
+pub async fn before_exit(
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
-    // 构建"正在输入"状态消息
-    let message = serde_json::json!({
-        "message_type": "TypingIndicator",
-        "sender_id": user_id,
-        "conversation_id": conversation_id,
-        "data": {
-            "is_typing": is_typing,
-            "recipients": recipients,
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        },
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    });
-    
-    // 发送状态
-    websocket_state.send_message(message.to_string()).await
+    debug!("Application exit - saving pending messages");
+    websocket_state.save_pending_messages().await
 }
