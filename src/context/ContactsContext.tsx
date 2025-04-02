@@ -42,8 +42,8 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
       if (!user) throw new Error("Not authenticated");
       
       await invoke<void>('accept_friend_request', {
-        userId: user.id,
-        requestId: requestId
+        user_id: user.id,
+        request_id: requestId
       });
       
       // 成功后可以添加一些UI反馈
@@ -59,8 +59,8 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
       if (!user) throw new Error("Not authenticated");
       
       await invoke<void>('reject_friend_request', {
-        userId: user.id,
-        requestId: requestId
+        user_id: user.id,
+        request_id: requestId
       });
       
       // 成功后可以添加一些UI反馈

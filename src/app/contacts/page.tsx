@@ -1,42 +1,136 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SideNav from '@/components/layout/SideNav';
 import ContactsSidebar from '@/components/contacts/ContactsSidebar';
 import ContactsList, { Contact } from '@/components/contacts/ContactsList';
+import { useContacts } from '@/context/ContactsContext';
+import { invoke } from '@tauri-apps/api/core';
+import { useAuth } from '@/hooks/useAuth';
 
-// Sample contacts data in English
-const contactsData: Contact[] = [
-  { id: '1', name: 'John Doe', status: 'online', avatar: '', favorite: true, tags: ['Colleague', 'Project A'] },
-  { id: '2', name: 'Jane Smith', status: 'offline', avatar: '', favorite: false, tags: ['Friend'] },
-  { id: '3', name: 'Michael Brown', status: 'away', avatar: '', favorite: true, tags: ['Family'] },
-  { id: '4', name: 'Emily Johnson', status: 'busy', avatar: '', favorite: false, tags: ['Classmate', 'Project B'] },
-  { id: '5', name: 'David Lee', status: 'online', avatar: '', favorite: false, tags: ['Colleague'] },
-];
-
-// Sample friend requests data in English
-const requestsData = [
-  { id: '1', name: 'Robert Green', avatar: '', timeAgo: '2 days ago' },
-  { id: '2', name: 'Linda White', avatar: '', timeAgo: '1 week ago' },
-];
+// 添加好友请求接口
+interface FriendRequest {
+  id: string;
+  name: string;
+  avatar: string;
+  timeAgo: string;
+}
 
 export default function ContactsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'favorites' | 'groups' | 'friendRequests'>('all');
   const [searchTerm, setSearchTerm] = useState('');
-
-  const filteredContacts = contactsData.filter(contact => {
-    if (searchTerm && !contact.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [favoriteContacts, setFavoriteContacts] = useState<Contact[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const contactsContext = useContacts();
+  
+  // 从数据库加载联系人
+  const loadContacts = async () => {
+    try {
+      setLoading(true);
+      if (!user) return;
+      
+      // 获取所有联系人
+      const allContacts = await invoke<any[]>('get_contacts', { userId: user.id });
+      
+      // 获取收藏的联系人
+      const favorites = await invoke<any[]>('get_favorite_contacts', { userId: user.id });
+      
+      // 转换数据格式
+      const contactsList: Contact[] = allContacts.map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        status: contact.status || 'offline',
+        avatar: contact.avatar_url || '',
+        favorite: favorites.some(fav => fav.id === contact.id),
+        tags: [] // 你可能需要从其他地方获取标签
+      }));
+      
+      const favoritesList: Contact[] = favorites.map(contact => ({
+        id: contact.id,
+        name: contact.name,
+        status: contact.status || 'offline',
+        avatar: contact.avatar_url || '',
+        favorite: true,
+        tags: []
+      }));
+      
+      setContacts(contactsList);
+      setFavoriteContacts(favoritesList);
+    } catch (error) {
+      console.error('Failed to load contacts:', error);
+    } finally {
+      setLoading(false);
     }
-    if (activeTab === 'favorites' && !contact.favorite) {
-      return false;
+  };
+  
+  // 加载好友请求
+  const loadFriendRequests = async () => {
+    try {
+      setLoading(true);
+      if (!user) return;
+      
+      // 获取好友请求
+      const requests = await invoke<any[]>('get_friend_requests', { userId: user.id });
+      
+      // 转换数据格式
+      const requestsList: FriendRequest[] = requests.map(req => ({
+        id: req.id,
+        name: req.sender?.name || 'Unknown User',
+        avatar: req.sender?.avatar_url || '',
+        timeAgo: calculateTimeAgo(req.created_at)
+      }));
+      
+      setFriendRequests(requestsList);
+    } catch (error) {
+      console.error('Failed to load friend requests:', error);
+    } finally {
+      setLoading(false);
     }
-    return true;
-  });
-
+  };
+  
+  // 计算时间差的辅助函数
+  const calculateTimeAgo = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
+    
+    return `${Math.floor(diffInSeconds / 2592000)} months ago`;
+  };
+  
+  // 根据标签和搜索过滤联系人
+  const getFilteredContacts = () => {
+    let filteredList = activeTab === 'favorites' ? favoriteContacts : contacts;
+    
+    if (searchTerm) {
+      filteredList = filteredList.filter(contact => 
+        contact.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return filteredList;
+  };
+  
+  // 初始加载和标签切换时加载数据
+  useEffect(() => {
+    if (activeTab === 'friendRequests') {
+      loadFriendRequests();
+    } else {
+      loadContacts();
+    }
+  }, [activeTab, user]);
+  
   return (
     <div className="flex h-screen overflow-hidden">
-      <SideNav userName={''} />
+      <SideNav userName={user?.name || ''} />
       
       <div className="flex-1 bg-bg-primary p-6 overflow-auto">
         <div className="max-w-6xl mx-auto">
@@ -50,27 +144,31 @@ export default function ContactsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {/* Sidebar */}
             <div className="md:col-span-1">
-              <ContactsSidebar 
+              <ContactsSidebar
                 activeTab={activeTab}
                 setActiveTab={setActiveTab}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
-                friendRequestCount={requestsData.length}
+                friendRequestCount={friendRequests.length}
               />
             </div>
             
             {/* Contacts List */}
             <div className="md:col-span-3">
-              {activeTab === 'friendRequests' ? (
-                <ContactsList 
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary"></div>
+                </div>
+              ) : activeTab === 'friendRequests' ? (
+                <ContactsList
                   activeTab={activeTab}
-                  friendRequestsData={requestsData}
-                  contacts={[]} 
+                  friendRequestsData={friendRequests}
+                  contacts={[]}
                 />
               ) : (
-                <ContactsList 
+                <ContactsList
                   activeTab={activeTab}
-                  contacts={filteredContacts}
+                  contacts={getFilteredContacts()}
                 />
               )}
             </div>
