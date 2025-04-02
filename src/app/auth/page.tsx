@@ -8,7 +8,7 @@ import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { FaStaylinked } from "react-icons/fa";
 import { Lock } from 'lucide-react';
-import { getOAuthUrl, User} from '@/lib/authApi';
+import { getOAuthUrl} from '@/lib/authApi';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,15 +20,6 @@ export default function AuthPage() {
 
   const handleAuthSuccess = (userData: any) => {
     router.push('/chat');
-  };
-
-  const handleOAuthLogin = async (provider: string) => {
-    try {
-      const authUrl = await getOAuthUrl(provider);
-      window.open(authUrl, '_blank', 'width=600,height=700');
-    } catch (err) {
-      console.error(`Failed to initiate ${provider} login:`, err);
-    }
   };
 
   return (

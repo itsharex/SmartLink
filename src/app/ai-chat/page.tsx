@@ -17,6 +17,7 @@ export type AiMessage = {
   id: string;
   content: string;
   sender: 'user' | 'other';
+  type: 'text' | 'image' | 'file' | 'voice';
   timestamp: Date;
 };
 
@@ -60,6 +61,7 @@ export default function AiChatPage() {
       id: uuidv4(),
       content,
       sender: 'user',
+      type: 'text',
       timestamp: new Date(),
     };
     const updatedMessages = [...(aiMessages[selectedChatId] || []), userMessage];
@@ -91,7 +93,7 @@ export default function AiChatPage() {
         ...prev,
         [selectedChatId]: [
           ...prev[selectedChatId],
-          { id: 'assistant_stream', content: "", sender: 'other', timestamp: new Date() }
+          { id: 'assistant_stream', content: "", sender: 'other', timestamp: new Date(), type: 'text' }
         ]
       }));
       

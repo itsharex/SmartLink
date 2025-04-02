@@ -6,6 +6,7 @@ export type AiMessage = {
     id: string;
     content: string;
     sender: 'user' | 'other';
+    type: 'text' | 'image' | 'file' | 'voice';
     timestamp: Date;
   };
 

@@ -163,6 +163,8 @@ impl AuthManager {
         
         Ok(user)
     }
+
+    
     
     // Get the currently logged-in user
     pub async fn get_current_user(&self) -> Result<User, AuthError> {

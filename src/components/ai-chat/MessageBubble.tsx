@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import Avatar from '../ui/Avatar';
 import { type Message } from '@/components/chat/ChatWindow';
-import { Check, CheckCheck, Image, File, Mic } from 'lucide-react';
+import { Check, CheckCheck, Image, File, Mic, ChevronDown, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { languageOptions } from '@/lib/constants/languages';
 
 type MessageBubbleProps = {
   message: Message;
@@ -16,6 +17,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isIncoming = message.sender === 'other';
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState('en');
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+
+  const messageType = message.type || 'text';
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -30,11 +36,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const handleTranslate = async () => {
     if (translatedContent) {
-      setTranslatedContent(null); // Toggle back to original
+      setTranslatedContent(null);
+      setTranslationError(null);
       return;
     }
 
     setIsTranslating(true);
+    setTranslationError(null);
     try {
       const response = await fetch('/api/groq/translate', {
         method: 'POST',
@@ -43,8 +51,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         },
         body: JSON.stringify({
           text: message.content,
-          fromLang: 'auto', // Auto-detect source language
-          toLang: 'en',     // Translate to English (adjust as needed)
+          fromLang: 'auto',
+          toLang: targetLanguage,
         }),
       });
 
@@ -53,10 +61,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       }
 
       const data = await response.json();
-      setTranslatedContent(data.translated || message.content); // Fallback to original if no translation
+      if (data.translated === message.content) {
+        // If the translated text is the same as the original, assume the translation failed
+        setTranslationError(`Translation to ${languageOptions.find(lang => lang.code === targetLanguage)?.name} failed.`);
+        setTranslatedContent(null);
+      } else {
+        setTranslatedContent(data.translated);
+      }
     } catch (error) {
       console.error('Translation error:', error);
-      setTranslatedContent(message.content); // Fallback to original on error
+      setTranslationError(`Translation to ${languageOptions.find(lang => lang.code === targetLanguage)?.name} failed.`);
+      setTranslatedContent(null);
     } finally {
       setIsTranslating(false);
     }
@@ -64,7 +79,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const renderMessageContent = () => {
     const content = translatedContent || message.content;
-    switch (message.type) {
+    switch (messageType) {
       case 'image':
         return (
           <div className="relative rounded-lg overflow-hidden">
@@ -112,10 +127,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         return (
           <div className={isIncoming ? 'text-text-primary' : 'text-white'}>
             <ReactMarkdown>{content}</ReactMarkdown>
+            {translationError && (
+              <p className="text-sm text-red-400 mt-1">{translationError}</p>
+            )}
           </div>
         );
     }
   };
+
+  const selectedLanguageName = languageOptions.find(lang => lang.code === targetLanguage)?.name || 'English';
 
   return (
     <div className={`max-w-[80%] flex ${isIncoming ? 'self-start' : 'self-end flex-row-reverse'}`}>
@@ -136,14 +156,61 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           `}
         >
           {renderMessageContent()}
-          {message.type === 'text' && (
-            <button
-              onClick={handleTranslate}
-              disabled={isTranslating}
-              className="mt-2 text-sm text-gray-400 hover:text-gray-200"
-            >
-              {isTranslating ? 'Translating...' : translatedContent ? 'Show Original' : 'Translate to English'}
-            </button>
+          {messageType === 'text' && isIncoming && (
+            <div className="mt-2 flex items-center gap-2 border-t border-white/10 pt-2">
+              <div className="relative">
+                <button
+                  onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
+                  className="flex items-center gap-1 px-2 py-1 text-sm bg-bg-secondary text-text-primary rounded-md transition-colors"
+                  disabled={isTranslating}
+                >
+                  <span>{selectedLanguageName}</span>
+                  <ChevronDown size={14} className={`transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                {showLanguageDropdown && (
+                  <div className="absolute z-10 mt-1 w-40 max-h-48 overflow-y-auto rounded-md bg-bg-tertiary shadow-lg border border-white/10">
+                    <div className="py-1">
+                      {languageOptions.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => {
+                            setTargetLanguage(lang.code);
+                            setShowLanguageDropdown(false);
+                            setTranslatedContent(null);
+                          }}
+                          className={`block w-full text-left px-3 py-2 text-sm ${
+                            targetLanguage === lang.code 
+                              ? 'bg-bg-secondary text-accent-primary' 
+                              : 'text-text-primary hover:bg-accent-primary-10'
+                          }`}
+                        >
+                          {lang.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleTranslate}
+                disabled={isTranslating}
+                className={`flex items-center gap-1 px-3 py-1 text-sm rounded-md transition-colors bg-accent-primary hover:bg-accent-primary-80 text-text-secondary`}
+              >
+                {isTranslating ? (
+                  <>
+                    <div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin mr-1"></div>
+                    <span>Translating...</span>
+                  </>
+                ) : translatedContent ? (
+                  <>
+                    <RotateCcw size={14} />
+                    <span>Show original text</span>
+                  </>
+                ) : (
+                  <span>Translate</span>
+                )}
+              </button>
+            </div>
           )}
         </div>
         <div className={`flex items-center mt-1 text-xs text-text-primary-30 ${isIncoming ? 'self-start' : 'self-end'}`}>

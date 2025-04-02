@@ -1,50 +1,56 @@
-// context/AuthContext.tsx
 'use client';
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout as apiLogout } from '@/lib/authApi';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { getCurrentUser, logout as apiLogout, authUser } from '@/lib/authApi';
 
-const AuthContext = createContext<any>(undefined);
+interface AuthContextType {
+  user: authUser | null;
+  setUser: (user: authUser | null) => void;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<authUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // 组件挂载时检查用户是否已登录
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        // 尝试从存储中获取令牌
-        const token = localStorage.getItem('authToken');
-        
-        if (!token) {
-          setIsLoading(false);
-          return;
-        }
-        
-        // 令牌存在，尝试获取当前用户
-        const userData = await getCurrentUser();
-        setUser(userData);
-      } catch (err) {
-        console.error('Auth check failed:', err);
-        // 清除可能无效的令牌
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
-      } finally {
-        setIsLoading(false);
+  const checkAuthStatus = async () => {
+    const userData = await getCurrentUser().catch(() => null);
+  
+    if (userData) {
+      setUser(userData);
+      if (pathname === '/auth') {
+        router.push('/chat');
       }
-    };
+    } else {
+      setUser(null);
+      localStorage.removeItem('authToken');
+      if (!pathname.startsWith('/auth')) {
+        router.push('/auth');
+      }
+    }
+  
+    setIsLoading(false);
+  };
 
+  useEffect(() => {
     checkAuthStatus();
   }, []);
 
-  // 监听 OAuth 弹出窗口发送的认证事件
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data.type === 'oauth-success') {
         setUser(event.data.user);
+        localStorage.setItem('authToken', event.data.token);
         router.push('/chat');
       }
     };
@@ -53,25 +59,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('message', handleMessage);
   }, [router]);
 
+  useEffect(() => {
+    const handleRouteChange = (url: string) => {
+      if (!user && !url.startsWith('/auth')) {
+        router.push('/auth');
+      }
+    };
+
+    // Use pathname and searchParams to construct the full URL
+    const fullUrl = `${pathname}${searchParams ? `?${searchParams.toString()}` : ''}`;
+    handleRouteChange(fullUrl);
+
+    // No need to listen to router.events in Next.js 13+ with App Router
+  }, [user, pathname, searchParams, router]);
+
   const logout = async () => {
     try {
       await apiLogout();
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      // 无论API是否成功，都清除本地存储
-      localStorage.removeItem('authToken');
       localStorage.removeItem('user');
+      localStorage.removeItem('authToken');
+      sessionStorage.clear();
       setUser(null);
       router.push('/auth');
+      window.location.reload();
     }
   };
 
   const value = {
     user,
+    setUser,
     isAuthenticated: !!user,
     isLoading,
     logout,
+    refresh: checkAuthStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
