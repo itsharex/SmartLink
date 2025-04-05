@@ -277,4 +277,17 @@ impl UserDatabase {
             
         Ok(())
     }
+
+    pub async fn find_by_id(&self, id: &str) -> Result<User, AuthError> {
+        let collection = self.get_users_collection();
+        
+        let filter = doc! { "user.id": id };
+        let result = collection.find_one(filter, None).await
+            .map_err(|e| AuthError::DatabaseError(e.to_string()))?;
+        
+        match result {
+            Some(user_record) => Ok(user_record.user),
+            None => Err(AuthError::UserNotFound),
+        }
+    }
 }

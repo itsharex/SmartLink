@@ -188,11 +188,21 @@ pub async fn handle_oauth_callback(
 #[command]
 pub async fn get_current_user(
     app_handle: AppHandle,
+    token: String,
 ) -> Result<User, AuthError> {
-    let auth_manager = AuthManager::get_instance();
-    let auth_manager = auth_manager.lock().await;
+    // 验证token
+    let claims = validate_token(&token)
+        .map_err(|_| AuthError::Unauthenticated)?;
     
-    auth_manager.get_current_user().await
+    // 从claims中获取用户ID
+    let user_id = claims.sub;
+    
+    // 从数据库获取用户
+    let auth_manager = AuthManager::get_instance();
+    let mut auth_manager = auth_manager.lock().await;
+    
+    // 需要添加一个从ID获取用户的方法
+    auth_manager.user_db.find_by_id(&user_id).await
 }
 
 // Logout
