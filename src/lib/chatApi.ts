@@ -81,16 +81,13 @@ export class AuthenticationError extends Error {
   }
 }
 
-// 检查认证状态的包装函数
 async function withAuth<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    // 尝试获取当前用户，如果失败会抛出错误
     await getCurrentUser();
-    // 如果成功，执行原函数
     return await fn();
   } catch (error) {
-    console.error('Authentication error:', error);
-    throw new AuthenticationError();
+    console.error('Authentication error details:', error); // 打印详细错误
+    throw new AuthenticationError(error instanceof Error ? error.message : 'Unknown authentication error');
   }
 }
 
@@ -105,9 +102,9 @@ export function initChatEventListener(callback: (event: WebSocketEvent) => void)
     
     chatEventListenerInitialized = true;
     
-    return listen<WebSocketEvent>('chat_event', (event) => {
+    return listen<WebSocketEvent>('chat_event', (event: { payload: WebSocketEvent; }) => {
       callback(event.payload);
-    }).then(unlisten => {
+    }).then((unlisten: () => void) => {
       return () => {
         chatEventListenerInitialized = false;
         unlisten();
@@ -130,70 +127,66 @@ export async function getConversations(): Promise<Conversation[]> {
 export async function createConversation(
   participants: string[],
   name?: string,
-  encryptionEnabled: boolean = false,
+  encryptionEnabled: boolean = false, 
   conversationType: ConversationType = ConversationType.Direct
 ): Promise<Conversation> {
   return withAuth(async () => {
-    // 确保参数名称与后端一致
-    return invoke<Conversation>('create_conversation', {
-      name,
-      participants,
-      encryption_enabled: encryptionEnabled,
-      conversation_type: conversationType
-    });
+    const payload = { name, participants, encryptionEnabled, conversationType };
+    console.log("Sending to invoke:", JSON.stringify(payload));
+    return invoke<Conversation>('create_conversation', payload);
   });
 }
 
-export async function getConversation(conversationId: string): Promise<Conversation | null> {
+export async function getConversation(conversation_id: string): Promise<Conversation | null> {
   return withAuth(async () => {
     // 注意参数名称
     return invoke<Conversation | null>('get_conversation', { 
-      conversation_id: conversationId 
+      conversation_id
     });
   });
 }
 
 // 消息管理
 export async function sendMessage(
-  conversationId: string,
+  conversation_id: string,
   content: string,
-  contentType: MessageType = MessageType.Text,
-  mediaUrl?: string
+  content_type: MessageType = MessageType.Text,
+  media_url?: string
 ): Promise<Message> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<Message>('send_message', {
-      conversation_id: conversationId,
+      conversation_id,
       content,
       sender_id: user.id,
-      content_type: contentType,
-      media_url: mediaUrl
+      content_type,
+      media_url
     });
   });
 }
 
 export async function getMessages(
-  conversationId: string,
+  conversation_id: string,
   limit?: number,
-  beforeId?: string
+  before_id?: string
 ): Promise<Message[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<Message[]>('get_messages', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id,
       limit,
-      before_id: beforeId
+      before_id,
     });
   });
 }
 
 export async function updateLocalMessageStatus(
-  messageId: string,
+  message_id: string,
   status: MessageStatus
 ): Promise<void> {
   return withAuth(async () => {
@@ -201,44 +194,44 @@ export async function updateLocalMessageStatus(
     
     // 确保参数名称与后端一致
     return invoke<void>('update_message_status', {
-      message_id: messageId,
+      message_id,
       user_id: user.id,
       status
     });
   });
 }
 
-export async function markMessageRead(messageId: string): Promise<void> {
+export async function markMessageRead(message_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<void>('mark_message_read', {
-      message_id: messageId,
+      message_id,
       user_id: user.id
     });
   });
 }
 
-export async function markConversationRead(conversationId: string): Promise<number> {
+export async function markConversationRead(conversation_id: string): Promise<number> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<number>('mark_conversation_read', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id
     });
   });
 }
 
-export async function markConversationDelivered(conversationId: string): Promise<number> {
+export async function markConversationDelivered(conversation_id: string): Promise<number> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<number>('mark_conversation_delivered', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id
     });
   });
@@ -248,49 +241,47 @@ export async function markConversationDelivered(conversationId: string): Promise
 export async function createGroupChat(
   name: string,
   members: string[],
-  encryptionEnabled: boolean = false
+  encryptionEnabled: boolean = false // 改为驼峰格式
 ): Promise<Conversation> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
-    // 确保参数名称与后端一致
     return invoke<Conversation>('create_group_chat', {
       name,
-      creator_id: user.id,
+      creatorId: user.id,
       members,
-      encryption_enabled: encryptionEnabled
+      encryptionEnabled
     });
   });
 }
 
 export async function addGroupMember(
-  conversationId: string,
-  memberId: string
+  conversation_id: string,
+  member_id: string
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<void>('add_group_member', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id,
-      member_id: memberId
+      member_id
     });
   });
 }
 
 export async function removeGroupMember(
-  conversationId: string,
-  memberId: string
+  conversation_id: string,
+  member_id: string
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<void>('remove_group_member', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id,
-      member_id: memberId
+      member_id
     });
   });
 }
@@ -307,23 +298,23 @@ export async function getUnreadCount(): Promise<number> {
   });
 }
 
-export async function getOnlineParticipants(conversationId: string): Promise<string[]> {
+export async function getOnlineParticipants(conversation_id: string): Promise<string[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     
     // 确保参数名称与后端一致
     return invoke<string[]>('get_online_participants', {
-      conversation_id: conversationId,
+      conversation_id,
       user_id: user.id
     });
   });
 }
 
 // WebSocket 相关功能
-export async function initializeWebSocket(serverUrl?: string): Promise<void> {
+export async function initializeWebSocket(server_url?: string): Promise<void> {
   return withAuth(async () => {
     return invoke<void>('initialize_websocket', { 
-      server_url: serverUrl 
+      server_url
     });
   });
 }
@@ -356,53 +347,53 @@ export async function sendWebSocketMessage(message: string): Promise<void> {
 }
 
 export async function sendChatMessage(
-  conversationId: string,
+  conversation_id: string,
   content: string,
-  recipientId?: string,
-  messageType: string = MessageType.Text
+  recipient_id?: string,
+  message_type: string = MessageType.Text
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('send_chat_message', {
-      conversation_id: conversationId,
-      recipient_id: recipientId,
+      conversation_id,
+      recipient_id,
       content,
       sender_id: user.id,
-      message_type: messageType
+      message_type,
     });
   });
 }
 
 export async function sendWebRTCSignal(
-  recipientId: string,
-  signalType: string,
-  signalData: any,
-  conversationId?: string
+  recipient_id: string,
+  signal_type: string,
+  signal_data: any,
+  conversation_id?: string
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('send_webrtc_signal', {
-      recipient_id: recipientId,
-      conversation_id: conversationId,
-      signal_type: signalType,
-      signal_data: signalData,
+      recipient_id,
+      conversation_id,
+      signal_type,
+      signal_data,
       sender_id: user.id
     });
   });
 }
 
 export async function updateMessageStatus(
-  messageId: string,
-  conversationId: string,
-  originalSenderId: string,
+  message_id: string,
+  conversation_id: string,
+  original_sender_id: string,
   status: 'read' | 'delivered'
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('update_message_status', {
-      message_id: messageId,
-      conversation_id: conversationId,
-      original_sender_id: originalSenderId,
+      message_id,
+      conversation_id,
+      original_sender_id,
       status,
       user_id: user.id
     });
@@ -410,22 +401,22 @@ export async function updateMessageStatus(
 }
 
 export async function sendTypingIndicator(
-  conversationId: string,
-  isTyping: boolean,
+  conversation_id: string,
+  is_typing: boolean,
   recipients: string[]
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('send_typing_indicator', {
-      conversation_id: conversationId,
-      is_typing: isTyping,
+      conversation_id,
+      is_typing,
       user_id: user.id,
       recipients
     });
   });
 }
 
-// 添加 ConnectionStatus 枚举
+// 添加 ConnectionStatus 枚举（无需修改）
 export enum ConnectionStatus {
   Connected = 'Connected',
   Connecting = 'Connecting',
@@ -433,8 +424,7 @@ export enum ConnectionStatus {
   Error = 'Error'
 }
 
-// 在src/lib/chatApi.ts中添加以下函数和接口
-
+// 接口定义（无需修改参数名，仅用于类型）
 export interface User {
   id: string;
   name: string;
@@ -475,17 +465,19 @@ export async function getFavoriteContacts(): Promise<User[]> {
 // 搜索用户
 export async function searchUsers(query: string): Promise<User[]> {
   return withAuth(async () => {
-    return invoke<User[]>('search_users', { query });
+    return invoke<User[]>('search_users', { 
+      query 
+    });
   });
 }
 
 // 发送好友请求
-export async function sendFriendRequest(recipientId: string): Promise<void> {
+export async function sendFriendRequest(recipient_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('send_friend_request', {
       sender_id: user.id,
-      recipient_id: recipientId
+      recipient_id
     });
   });
 }
@@ -501,45 +493,45 @@ export async function getFriendRequests(): Promise<FriendRequest[]> {
 }
 
 // 接受好友请求
-export async function acceptFriendRequest(requestId: string): Promise<void> {
+export async function acceptFriendRequest(request_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('accept_friend_request', {
       user_id: user.id,
-      request_id: requestId
+      request_id
     });
   });
 }
 
 // 拒绝好友请求
-export async function rejectFriendRequest(requestId: string): Promise<void> {
+export async function rejectFriendRequest(request_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('reject_friend_request', {
       user_id: user.id,
-      request_id: requestId
+      request_id
     });
   });
 }
 
 // 将联系人添加到收藏
-export async function addContactToFavorites(contactId: string): Promise<void> {
+export async function addContactToFavorites(contact_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('add_contact_to_favorites', {
       user_id: user.id,
-      contact_id: contactId
+      contact_id
     });
   });
 }
 
 // 从收藏中移除联系人
-export async function removeContactFromFavorites(contactId: string): Promise<void> {
+export async function removeContactFromFavorites(contact_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
     return invoke<void>('remove_contact_from_favorites', {
       user_id: user.id,
-      contact_id: contactId
+      contact_id
     });
   });
 }

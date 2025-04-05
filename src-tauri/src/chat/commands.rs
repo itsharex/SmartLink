@@ -43,7 +43,7 @@ pub async fn get_conversations(
     user_id: String,
     state: State<'_, ChatState>,
 ) -> Result<Vec<Conversation>, Error> {
-    debug!("Getting conversations for user: {}", user_id);
+    info!("Getting conversations for user: {}", user_id);
     state.chat_manager.get_user_conversations(&user_id).await
 }
 
@@ -52,29 +52,28 @@ pub async fn get_conversations(
 pub async fn create_conversation(
     name: Option<String>,
     participants: Vec<String>,
-    encryption_enabled: bool,
-    conversation_type: ConversationType,
+    encryptionEnabled: bool, 
+    conversationType: ConversationType,
     state: State<'_, ChatState>,
 ) -> Result<Conversation, Error> {
-    debug!("Creating new conversation with {} participants", participants.len());
+    info!("Creating new conversation with {} participants", participants.len());
     
     let new_conversation = NewConversation {
         name,
-        conversation_type,
+        conversation_type: conversationType,
         participants,
-        encryption_enabled,
+        encryption_enabled: encryptionEnabled,
     };
     
     state.chat_manager.create_conversation(new_conversation).await
 }
-
 /// 获取会话详情
 #[tauri::command]
 pub async fn get_conversation(
     conversation_id: String,
     state: State<'_, ChatState>,
 ) -> Result<Option<Conversation>, Error> {
-    debug!("Getting conversation details: {}", conversation_id);
+    info!("Getting conversation details: {}", conversation_id);
     state.chat_manager.get_conversation(&conversation_id).await
 }
 
@@ -168,18 +167,18 @@ pub async fn mark_conversation_delivered(
 #[tauri::command]
 pub async fn create_group_chat(
     name: String,
-    creator_id: String,
+    creatorId: String, // 改为驼峰格式
     members: Vec<String>,
-    encryption_enabled: bool,
+    encryptionEnabled: bool, // 改为驼峰格式
     state: State<'_, ChatState>,
 ) -> Result<Conversation, Error> {
-    debug!("Creating group chat '{}' by user {}", name, creator_id);
+    debug!("Creating group chat '{}' by user {}", name, creatorId);
     
     state.chat_manager.create_group_chat(
         &name,
-        &creator_id,
+        &creatorId, // 使用驼峰格式变量
         members,
-        encryption_enabled,
+        encryptionEnabled, // 使用驼峰格式变量
     ).await
 }
 

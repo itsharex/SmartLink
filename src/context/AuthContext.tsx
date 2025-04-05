@@ -23,22 +23,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
 
   const checkAuthStatus = async () => {
-    const userData = await getCurrentUser().catch(() => null);
-  
-    if (userData) {
-      setUser(userData);
-      if (pathname === '/auth') {
-        router.push('/chat');
+    setIsLoading(true);
+    try {
+      const userData = await getCurrentUser();
+      
+      if (userData) {
+        // 用户已登录
+        setUser(userData);
+        if (pathname === '/auth') {
+          router.push('/chat');
+        }
+      } else {
+        // 用户未登录
+        setUser(null);
+        localStorage.removeItem('authToken');
+        if (!pathname.startsWith('/auth')) {
+          router.push('/auth');
+        }
       }
-    } else {
+    } catch (error) {
       setUser(null);
-      localStorage.removeItem('authToken');
       if (!pathname.startsWith('/auth')) {
         router.push('/auth');
       }
+    } finally {
+      setIsLoading(false);
     }
-  
-    setIsLoading(false);
   };
 
   useEffect(() => {

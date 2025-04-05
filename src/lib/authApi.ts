@@ -33,11 +33,16 @@ export async function handleOAuthCallback(provider: string, code: string, state?
   return invoke<authUser>('handle_oauth_callback', { provider, code, state });
 }
 
-export async function getCurrentUser(): Promise<authUser> {
+export async function getCurrentUser(): Promise<authUser | null> {
   const token = localStorage.getItem('authToken');
-  if (!token) throw new Error("No authentication token found");
-
-  return invoke<authUser>('get_current_user', { token });
+  if (!token) return null;
+  
+  try {
+    return await invoke<authUser>('get_current_user', { token });
+  } catch (err) {
+    console.log('User not authenticated, redirecting to login');
+    return null;
+  }
 }
 
 
