@@ -25,7 +25,7 @@ export enum MessageStatus {
 }
 
 export interface ReadStatus {
-  read_by: Record<string, string>; // 用户ID -> 时间戳
+  read_by: Record<string, string>;
 }
 
 export interface LastMessagePreview {
@@ -117,6 +117,9 @@ export function initChatEventListener(callback: (event: WebSocketEvent) => void)
 export async function getConversations(): Promise<Conversation[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 修改这里：user_id 而不是 userId
     return invoke<Conversation[]>('get_conversations', { 
       user_id: user.id 
@@ -155,6 +158,9 @@ export async function sendMessage(
 ): Promise<Message> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     
     // 确保参数名称与后端一致
     return invoke<Message>('send_message', {
@@ -174,7 +180,9 @@ export async function getMessages(
 ): Promise<Message[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<Message[]>('get_messages', {
       conversation_id,
@@ -191,7 +199,9 @@ export async function updateLocalMessageStatus(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<void>('update_message_status', {
       message_id,
@@ -204,7 +214,9 @@ export async function updateLocalMessageStatus(
 export async function markMessageRead(message_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<void>('mark_message_read', {
       message_id,
@@ -216,7 +228,9 @@ export async function markMessageRead(message_id: string): Promise<void> {
 export async function markConversationRead(conversation_id: string): Promise<number> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<number>('mark_conversation_read', {
       conversation_id,
@@ -228,7 +242,9 @@ export async function markConversationRead(conversation_id: string): Promise<num
 export async function markConversationDelivered(conversation_id: string): Promise<number> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<number>('mark_conversation_delivered', {
       conversation_id,
@@ -245,6 +261,9 @@ export async function createGroupChat(
 ): Promise<Conversation> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<Conversation>('create_group_chat', {
       name,
       creatorId: user.id,
@@ -260,7 +279,9 @@ export async function addGroupMember(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<void>('add_group_member', {
       conversation_id,
@@ -276,7 +297,9 @@ export async function removeGroupMember(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<void>('remove_group_member', {
       conversation_id,
@@ -290,7 +313,9 @@ export async function removeGroupMember(
 export async function getUnreadCount(): Promise<number> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<number>('get_unread_count', {
       user_id: user.id
@@ -301,7 +326,9 @@ export async function getUnreadCount(): Promise<number> {
 export async function getOnlineParticipants(conversation_id: string): Promise<string[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
-    
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     // 确保参数名称与后端一致
     return invoke<string[]>('get_online_participants', {
       conversation_id,
@@ -322,6 +349,9 @@ export async function initializeWebSocket(server_url?: string): Promise<void> {
 export async function connectWebSocket(): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('connect_websocket', { 
       user_id: user.id 
     });
@@ -354,6 +384,9 @@ export async function sendChatMessage(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('send_chat_message', {
       conversation_id,
       recipient_id,
@@ -372,6 +405,9 @@ export async function sendWebRTCSignal(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('send_webrtc_signal', {
       recipient_id,
       conversation_id,
@@ -390,6 +426,9 @@ export async function updateMessageStatus(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('update_message_status', {
       message_id,
       conversation_id,
@@ -407,6 +446,9 @@ export async function sendTypingIndicator(
 ): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('send_typing_indicator', {
       conversation_id,
       is_typing,
@@ -446,6 +488,9 @@ export interface FriendRequest {
 export async function getContacts(): Promise<User[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<User[]>('get_contacts', { 
       user_id: user.id 
     });
@@ -456,6 +501,9 @@ export async function getContacts(): Promise<User[]> {
 export async function getFavoriteContacts(): Promise<User[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<User[]>('get_favorite_contacts', { 
       user_id: user.id 
     });
@@ -475,6 +523,9 @@ export async function searchUsers(query: string): Promise<User[]> {
 export async function sendFriendRequest(recipient_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('send_friend_request', {
       sender_id: user.id,
       recipient_id
@@ -486,6 +537,9 @@ export async function sendFriendRequest(recipient_id: string): Promise<void> {
 export async function getFriendRequests(): Promise<FriendRequest[]> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<FriendRequest[]>('get_friend_requests', {
       user_id: user.id
     });
@@ -496,6 +550,9 @@ export async function getFriendRequests(): Promise<FriendRequest[]> {
 export async function acceptFriendRequest(request_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('accept_friend_request', {
       user_id: user.id,
       request_id
@@ -507,6 +564,9 @@ export async function acceptFriendRequest(request_id: string): Promise<void> {
 export async function rejectFriendRequest(request_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('reject_friend_request', {
       user_id: user.id,
       request_id
@@ -518,6 +578,9 @@ export async function rejectFriendRequest(request_id: string): Promise<void> {
 export async function addContactToFavorites(contact_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('add_contact_to_favorites', {
       user_id: user.id,
       contact_id
@@ -529,6 +592,9 @@ export async function addContactToFavorites(contact_id: string): Promise<void> {
 export async function removeContactFromFavorites(contact_id: string): Promise<void> {
   return withAuth(async () => {
     const user = await getCurrentUser();
+    if (!user) {
+      throw new AuthenticationError('用户未登录');
+    }
     return invoke<void>('remove_contact_from_favorites', {
       user_id: user.id,
       contact_id
