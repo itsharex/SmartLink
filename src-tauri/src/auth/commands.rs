@@ -88,7 +88,6 @@ fn generate_token(user_id: &str) -> (String, DateTime<Utc>) {
     (token, expiration)
 }
 
-// Optional: Add a function to validate tokens
 fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let secret = env::var("JWT_SECRET")
         .unwrap_or_else(|_| "my-secret-key-for-dev-only".to_string());
