@@ -81,49 +81,51 @@ export class AuthenticationError extends Error {
   }
 }
 
-async function withAuth<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    await getCurrentUser();
-    return await fn();
-  } catch (error) {
-    console.error('Authentication error details:', error); // 打印详细错误
-    throw new AuthenticationError(error instanceof Error ? error.message : 'Unknown authentication error');
-  }
-}
-
 // 实时通信监听器
 let chatEventListenerInitialized = false;
 
-export function initChatEventListener(callback: (event: WebSocketEvent) => void): Promise<() => void> {
-  return withAuth(async () => {
-    if (chatEventListenerInitialized) {
-      throw new Error('Chat event listener already initialized');
-    }
-    
-    chatEventListenerInitialized = true;
-    
-    return listen<WebSocketEvent>('chat_event', (event: { payload: WebSocketEvent; }) => {
-      callback(event.payload);
-    }).then((unlisten: () => void) => {
-      return () => {
-        chatEventListenerInitialized = false;
-        unlisten();
-      };
-    });
+export async function initChatEventListener(callback: (event: WebSocketEvent) => void): Promise<() => void> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  if (chatEventListenerInitialized) {
+    throw new Error('Chat event listener already initialized');
+  }
+  
+  chatEventListenerInitialized = true;
+  
+  return listen<WebSocketEvent>('chat_event', (event: { payload: WebSocketEvent; }) => {
+    callback(event.payload);
+  }).then((unlisten: () => void) => {
+    return () => {
+      chatEventListenerInitialized = false;
+      unlisten();
+    };
   });
 }
 
 // 会话管理
 export async function getConversations(): Promise<Conversation[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 修改这里：user_id 而不是 userId
-    return invoke<Conversation[]>('get_conversations', { 
-      user_id: user.id 
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<Conversation[]>('get_conversations', { 
+    token,
+    user_id: user.id 
   });
 }
 
@@ -133,19 +135,42 @@ export async function createConversation(
   encryptionEnabled: boolean = false, 
   conversationType: ConversationType = ConversationType.Direct
 ): Promise<Conversation> {
-  return withAuth(async () => {
-    const payload = { name, participants, encryptionEnabled, conversationType };
-    console.log("Sending to invoke:", JSON.stringify(payload));
-    return invoke<Conversation>('create_conversation', payload);
-  });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const payload = { 
+    token,
+    name, 
+    participants, 
+    encryptionEnabled, 
+    conversationType 
+  };
+  console.log("Sending to invoke:", JSON.stringify(payload));
+  return invoke<Conversation>('create_conversation', payload);
 }
 
 export async function getConversation(conversation_id: string): Promise<Conversation | null> {
-  return withAuth(async () => {
-    // 注意参数名称
-    return invoke<Conversation | null>('get_conversation', { 
-      conversation_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<Conversation | null>('get_conversation', { 
+    token,
+    conversation_id,
+    user_id: user.id
   });
 }
 
@@ -156,20 +181,23 @@ export async function sendMessage(
   content_type: MessageType = MessageType.Text,
   media_url?: string
 ): Promise<Message> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    
-    // 确保参数名称与后端一致
-    return invoke<Message>('send_message', {
-      conversation_id,
-      content,
-      sender_id: user.id,
-      content_type,
-      media_url
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<Message>('send_message', {
+    token,
+    conversation_id,
+    content,
+    sender_id: user.id,
+    content_type,
+    media_url
   });
 }
 
@@ -178,18 +206,22 @@ export async function getMessages(
   limit?: number,
   before_id?: string
 ): Promise<Message[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<Message[]>('get_messages', {
-      conversation_id,
-      user_id: user.id,
-      limit,
-      before_id,
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<Message[]>('get_messages', {
+    token,
+    conversation_id,
+    user_id: user.id,
+    limit,
+    before_id,
   });
 }
 
@@ -197,59 +229,75 @@ export async function updateLocalMessageStatus(
   message_id: string,
   status: MessageStatus
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<void>('update_message_status', {
-      message_id,
-      user_id: user.id,
-      status
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('update_message_status', {
+    token,
+    message_id,
+    user_id: user.id,
+    status
   });
 }
 
 export async function markMessageRead(message_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<void>('mark_message_read', {
-      message_id,
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('mark_message_read', {
+    token,
+    message_id,
+    user_id: user.id
   });
 }
 
 export async function markConversationRead(conversation_id: string): Promise<number> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<number>('mark_conversation_read', {
-      conversation_id,
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<number>('mark_conversation_read', {
+    token,
+    conversation_id,
+    user_id: user.id
   });
 }
 
 export async function markConversationDelivered(conversation_id: string): Promise<number> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<number>('mark_conversation_delivered', {
-      conversation_id,
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<number>('mark_conversation_delivered', {
+    token,
+    conversation_id,
+    user_id: user.id
   });
 }
 
@@ -257,19 +305,24 @@ export async function markConversationDelivered(conversation_id: string): Promis
 export async function createGroupChat(
   name: string,
   members: string[],
-  encryptionEnabled: boolean = false // 改为驼峰格式
+  encryptionEnabled: boolean = false
 ): Promise<Conversation> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<Conversation>('create_group_chat', {
-      name,
-      creatorId: user.id,
-      members,
-      encryptionEnabled
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<Conversation>('create_group_chat', {
+    token,
+    name,
+    creatorId: user.id,
+    members,
+    encryptionEnabled
   });
 }
 
@@ -277,17 +330,21 @@ export async function addGroupMember(
   conversation_id: string,
   member_id: string
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<void>('add_group_member', {
-      conversation_id,
-      user_id: user.id,
-      member_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('add_group_member', {
+    token,
+    conversation_id,
+    user_id: user.id,
+    member_id
   });
 }
 
@@ -295,84 +352,141 @@ export async function removeGroupMember(
   conversation_id: string,
   member_id: string
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<void>('remove_group_member', {
-      conversation_id,
-      user_id: user.id,
-      member_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('remove_group_member', {
+    token,
+    conversation_id,
+    user_id: user.id,
+    member_id
   });
 }
 
 // 状态查询
 export async function getUnreadCount(): Promise<number> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<number>('get_unread_count', {
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<number>('get_unread_count', {
+    token,
+    user_id: user.id
   });
 }
 
 export async function getOnlineParticipants(conversation_id: string): Promise<string[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    // 确保参数名称与后端一致
-    return invoke<string[]>('get_online_participants', {
-      conversation_id,
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<string[]>('get_online_participants', {
+    token,
+    conversation_id,
+    user_id: user.id
   });
 }
 
 // WebSocket 相关功能
 export async function initializeWebSocket(server_url?: string): Promise<void> {
-  return withAuth(async () => {
-    return invoke<void>('initialize_websocket', { 
-      server_url
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('initialize_websocket', { 
+    token,
+    server_url
   });
 }
 
 export async function connectWebSocket(): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('connect_websocket', { 
-      user_id: user.id 
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('connect_websocket', { 
+    token,
+    user_id: user.id 
   });
 }
 
 export async function disconnectWebSocket(): Promise<void> {
-  return withAuth(async () => {
-    return invoke<void>('disconnect_websocket');
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('disconnect_websocket', {
+    token
   });
 }
 
 export async function getWebSocketStatus(): Promise<ConnectionStatus> {
-  return withAuth(async () => {
-    return invoke<ConnectionStatus>('get_websocket_status');
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<ConnectionStatus>('get_websocket_status', {
+    token
   });
 }
 
 export async function sendWebSocketMessage(message: string): Promise<void> {
-  return withAuth(async () => {
-    return invoke<void>('send_websocket_message', { message });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('send_websocket_message', { 
+    token,
+    message 
   });
 }
 
@@ -382,18 +496,23 @@ export async function sendChatMessage(
   recipient_id?: string,
   message_type: string = MessageType.Text
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('send_chat_message', {
-      conversation_id,
-      recipient_id,
-      content,
-      sender_id: user.id,
-      message_type,
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('send_chat_message', {
+    token,
+    conversation_id,
+    recipient_id,
+    content,
+    sender_id: user.id,
+    message_type,
   });
 }
 
@@ -403,18 +522,23 @@ export async function sendWebRTCSignal(
   signal_data: any,
   conversation_id?: string
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('send_webrtc_signal', {
-      recipient_id,
-      conversation_id,
-      signal_type,
-      signal_data,
-      sender_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('send_webrtc_signal', {
+    token,
+    recipient_id,
+    conversation_id,
+    signal_type,
+    signal_data,
+    sender_id: user.id
   });
 }
 
@@ -424,18 +548,23 @@ export async function updateMessageStatus(
   original_sender_id: string,
   status: 'read' | 'delivered'
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('update_message_status', {
-      message_id,
-      conversation_id,
-      original_sender_id,
-      status,
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('update_message_status', {
+    token,
+    message_id,
+    conversation_id,
+    original_sender_id,
+    status,
+    user_id: user.id
   });
 }
 
@@ -444,17 +573,22 @@ export async function sendTypingIndicator(
   is_typing: boolean,
   recipients: string[]
 ): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('send_typing_indicator', {
-      conversation_id,
-      is_typing,
-      user_id: user.id,
-      recipients
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('send_typing_indicator', {
+    token,
+    conversation_id,
+    is_typing,
+    user_id: user.id,
+    recipients
   });
 }
 
@@ -486,118 +620,174 @@ export interface FriendRequest {
 
 // 获取所有联系人
 export async function getContacts(): Promise<User[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<User[]>('get_contacts', { 
-      user_id: user.id 
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<User[]>('get_contacts', { 
+    token,
+    user_id: user.id 
   });
 }
 
 // 获取收藏的联系人
 export async function getFavoriteContacts(): Promise<User[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<User[]>('get_favorite_contacts', { 
-      user_id: user.id 
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<User[]>('get_favorite_contacts', { 
+    token,
+    user_id: user.id 
   });
 }
 
 // 搜索用户
 export async function searchUsers(query: string): Promise<User[]> {
-  return withAuth(async () => {
-    return invoke<User[]>('search_users', { 
-      query 
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<User[]>('search_users', { 
+    token,
+    query 
   });
 }
 
 // 发送好友请求
-export async function sendFriendRequest(recipient_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('send_friend_request', {
-      sender_id: user.id,
-      recipient_id
+export async function sendFriendRequest(recipientId: string): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+  
+  try {
+    console.log("Sending friend request from:", user.id, "to:", recipientId);
+    
+    await invoke<void>('send_friend_request', {
+      token,
+      senderId: user.id,
+      recipientId: recipientId
     });
-  });
+  } catch (err) {
+    console.error('Failed to send friend request:', err);
+    throw err;
+  }
 }
 
 // 获取好友请求列表
 export async function getFriendRequests(): Promise<FriendRequest[]> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<FriendRequest[]>('get_friend_requests', {
-      user_id: user.id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<FriendRequest[]>('get_friend_requests', {
+    token,
+    user_id: user.id
   });
 }
 
 // 接受好友请求
 export async function acceptFriendRequest(request_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('accept_friend_request', {
-      user_id: user.id,
-      request_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('accept_friend_request', {
+    token,
+    user_id: user.id,
+    request_id
   });
 }
 
 // 拒绝好友请求
 export async function rejectFriendRequest(request_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('reject_friend_request', {
-      user_id: user.id,
-      request_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('reject_friend_request', {
+    token,
+    user_id: user.id,
+    request_id
   });
 }
 
 // 将联系人添加到收藏
 export async function addContactToFavorites(contact_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('add_contact_to_favorites', {
-      user_id: user.id,
-      contact_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('add_contact_to_favorites', {
+    token,
+    user_id: user.id,
+    contact_id
   });
 }
 
 // 从收藏中移除联系人
 export async function removeContactFromFavorites(contact_id: string): Promise<void> {
-  return withAuth(async () => {
-    const user = await getCurrentUser();
-    if (!user) {
-      throw new AuthenticationError('用户未登录');
-    }
-    return invoke<void>('remove_contact_from_favorites', {
-      user_id: user.id,
-      contact_id
-    });
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    throw new AuthenticationError('用户未登录');
+  }
+  
+  return invoke<void>('remove_contact_from_favorites', {
+    token,
+    user_id: user.id,
+    contact_id
   });
 }

@@ -34,13 +34,31 @@ export async function handleOAuthCallback(provider: string, code: string, state?
 }
 
 export async function getCurrentUser(): Promise<authUser | null> {
-  const token = localStorage.getItem('authToken');
-  if (!token) return null;
-  
   try {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      return null;
+    }
+    
     return await invoke<authUser>('get_current_user', { token });
-  } catch (err) {
-    console.log('User not authenticated, redirecting to login');
+  } catch (error: unknown) {
+    console.error('Error getting current user:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Unauthenticated') || error.message.includes('Not authenticated')) {
+        localStorage.removeItem('authToken');
+      }
+    } else if (typeof error === 'string') {
+      if (error.includes('Unauthenticated') || error.includes('Not authenticated')) {
+        localStorage.removeItem('authToken');
+      }
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      const errMsg = (error as { message: string }).message;
+      if (errMsg.includes('Unauthenticated') || errMsg.includes('Not authenticated')) {
+        localStorage.removeItem('authToken');
+      }
+    }
+    
     return null;
   }
 }

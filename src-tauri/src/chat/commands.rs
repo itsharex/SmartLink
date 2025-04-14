@@ -5,13 +5,14 @@ use chrono::Utc;
 use mongodb::Database;
 use uuid::Uuid;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{Manager, State};
 use tracing::{debug, info};
 
 use super::db::ChatDatabase;
 use super::manager::ChatManager;
 use super::models::{Conversation, Message, NewConversation, NewMessage, ConversationType};
-use super::websocket::{ConnectionStatus, WebSocketConfig, WebSocketState};
+use super::websocket::{WebSocketConfig, WebSocketState};
+use crate::auth::commands::validate_token;
 
 /// 应用状态，包含聊天管理器
 pub struct ChatState {
@@ -50,23 +51,36 @@ pub async fn get_conversations(
 /// 创建新的会话
 #[tauri::command]
 pub async fn create_conversation(
+    token: String,
     name: Option<String>,
     participants: Vec<String>,
     encryptionEnabled: bool, 
     conversationType: ConversationType,
     state: State<'_, ChatState>,
 ) -> Result<Conversation, Error> {
-    info!("Creating new conversation with {} participants", participants.len());
+    let claims = validate_token(&token)
+        .map_err(|_| Error::Authentication("Invalid token".to_string()))?;
+    
+    let user_id = claims.sub;
+
+    let mut all_participants = participants.clone();
+    
+    if !all_participants.contains(&user_id) {
+        all_participants.push(user_id.clone());
+    }
+    
+    info!("Creating new conversation with {} participants", all_participants.len());
     
     let new_conversation = NewConversation {
         name,
         conversation_type: conversationType,
-        participants,
+        participants: all_participants,
         encryption_enabled: encryptionEnabled,
     };
     
     state.chat_manager.create_conversation(new_conversation).await
 }
+
 /// 获取会话详情
 #[tauri::command]
 pub async fn get_conversation(
@@ -94,7 +108,7 @@ pub async fn send_message(
         sender_id: sender_id.clone(),
         content,
         content_type,
-        encrypted: false, // 由管理器根据会话设置决定是否加密
+        encrypted: false,
         media_url,
     };
     
@@ -167,18 +181,18 @@ pub async fn mark_conversation_delivered(
 #[tauri::command]
 pub async fn create_group_chat(
     name: String,
-    creatorId: String, // 改为驼峰格式
+    creatorId: String,
     members: Vec<String>,
-    encryptionEnabled: bool, // 改为驼峰格式
+    encryptionEnabled: bool,
     state: State<'_, ChatState>,
 ) -> Result<Conversation, Error> {
     debug!("Creating group chat '{}' by user {}", name, creatorId);
     
     state.chat_manager.create_group_chat(
         &name,
-        &creatorId, // 使用驼峰格式变量
+        &creatorId,
         members,
-        encryptionEnabled, // 使用驼峰格式变量
+        encryptionEnabled,
     ).await
 }
 

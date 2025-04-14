@@ -47,10 +47,10 @@ pub struct LoginResponse {
 
 // JWT claims structure
 #[derive(Debug, Serialize, Deserialize)]
-struct Claims {
-    sub: String,    // Subject (user_id)
-    exp: i64,       // Expiration time (Unix timestamp)
-    iat: i64,       // Issued at (Unix timestamp)
+pub struct Claims {
+    pub sub: String,    // Subject (user_id)
+    pub exp: i64,       // Expiration time (Unix timestamp)
+    pub iat: i64,       // Issued at (Unix timestamp)
 }
 
 // Convert string to OAuthProvider
@@ -88,7 +88,7 @@ fn generate_token(user_id: &str) -> (String, DateTime<Utc>) {
     (token, expiration)
 }
 
-fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
+pub(crate) fn validate_token(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     let secret = env::var("JWT_SECRET")
         .unwrap_or_else(|_| "my-secret-key-for-dev-only".to_string());
     

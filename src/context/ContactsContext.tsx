@@ -4,6 +4,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from '@/hooks/useAuth';
 import { createConversation, ConversationType } from '@/lib/chatApi';
+import { getCurrentUser } from '@/lib/authApi';
 
 // 定义用户接口
 export interface User {
@@ -38,6 +39,7 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
 
   // 接受好友请求
   const acceptFriendRequest = async (requestId: string): Promise<void> => {
+    const user = await getCurrentUser();
     try {
       if (!user) throw new Error("Not authenticated");
       
@@ -55,6 +57,7 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
 
   // 拒绝好友请求
   const rejectFriendRequest = async (requestId: string): Promise<void> => {
+    const user = await getCurrentUser();
     try {
       if (!user) throw new Error("Not authenticated");
       
@@ -72,8 +75,17 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
 
   // 创建与联系人的聊天会话
   const createChatWithContact = async (contactId: string): Promise<string> => {
+    console.log("开始获取当前用户...");
+    const user = await getCurrentUser();
+    console.log("获取到的用户信息:", user);
+    
     try {
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        console.error("用户未认证，无法创建聊天");
+        throw new Error("Not authenticated");
+      }
+      
+      console.log("准备创建会话，用户ID:", user.id, "联系人ID:", contactId);
       
       const conversation = await createConversation(
         [contactId],
@@ -82,15 +94,18 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
         ConversationType.Direct
       );
       
+      console.log("成功创建会话:", conversation);
+      
       return conversation.id;
     } catch (err) {
-      console.error('Failed to create conversation:', err);
+      console.error('创建会话失败:', err);
       throw err;
     }
   };
 
   // 切换联系人收藏状态
   const toggleFavorite = async (contactId: string, isFavorite: boolean): Promise<void> => {
+    const user = await getCurrentUser();
     try {
       if (!user) throw new Error("Not authenticated");
       
@@ -140,6 +155,7 @@ export const ContactsProvider: React.FC<{children: React.ReactNode}> = ({ childr
 
     // 发送好友请求
     const sendFriendRequest = async (recipientId: string): Promise<void> => {
+      const user = await getCurrentUser();
       try {
           if (!user) throw new Error("Not authenticated");
           console.log("Sending friend request from:", user.id, "to:", recipientId);
