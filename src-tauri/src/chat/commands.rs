@@ -256,15 +256,15 @@ pub async fn get_online_participants(
 #[tauri::command]
 pub async fn initialize_websocket(
     app: tauri::AppHandle,
-    server_url: String,
-    heartbeat_interval_ms: Option<u64>,
+    serverUrl: String,
+    heartbeatIntervalMs: Option<u64>,
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
-    debug!("Initializing WebSocket client with server URL: {}", server_url);
+    debug!("Initializing WebSocket client with server URL: {}", serverUrl);
     
     let config = WebSocketConfig {
-        server_url,
-        heartbeat_interval_ms: heartbeat_interval_ms.unwrap_or(30000),
+        serverUrl,
+        heartbeatIntervalMs: heartbeatIntervalMs.unwrap_or(30000),
     };
     
     websocket_state.initialize(app, config).await;
@@ -274,11 +274,11 @@ pub async fn initialize_websocket(
 /// 连接到WebSocket服务器
 #[tauri::command]
 pub async fn connect_websocket(
-    user_id: String,
+    userId: String,
     websocket_state: State<'_, WebSocketState>,
 ) -> Result<(), String> {
-    debug!("Connecting to WebSocket server as user: {}", user_id);
-    websocket_state.connect(user_id).await
+    debug!("Connecting to WebSocket server as user: {}", userId);
+    websocket_state.connect(userId).await
 }
 
 /// 断开WebSocket连接
@@ -314,7 +314,7 @@ pub async fn send_websocket_message(
 pub async fn send_chat_message(
     conversation_id: String,
     content: String,
-    content_type: String,  // 仍然接收字符串参数
+    content_type: String,
     encrypted: Option<bool>,
     media_url: Option<String>,
     user_id: String,
@@ -356,8 +356,14 @@ pub async fn send_chat_message(
 /// 应用退出前保存消息
 #[tauri::command]
 pub async fn before_exit(
-    websocket_state: State<'_, WebSocketState>,
+    app_handle: tauri::AppHandle,
+    websocket_state: tauri::State<'_, WebSocketState>
 ) -> Result<(), String> {
-    debug!("Application exit - saving pending messages");
-    websocket_state.save_pending_messages().await
+    let db = app_handle.state::<ChatDatabase>();
+    
+    websocket_state.save_pending_messages(&db).await?;
+    
+    websocket_state.disconnect().await?;
+    
+    Ok(())
 }

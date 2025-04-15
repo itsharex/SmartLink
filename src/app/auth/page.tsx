@@ -9,6 +9,7 @@ import { FaGithub } from "react-icons/fa";
 import { FaStaylinked } from "react-icons/fa";
 import { Lock } from 'lucide-react';
 import { getOAuthUrl} from '@/lib/authApi';
+import { initializeWebSocket } from '@/lib/chatApi';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,7 +19,13 @@ export default function AuthPage() {
     e.preventDefault();
   };
 
-  const handleAuthSuccess = (userData: any) => {
+  const handleAuthSuccess = async (userData: any) => {
+    try {
+      await initializeWebSocket();
+      console.log('WebSocket连接成功');
+    } catch (error) {
+      console.error('WebSocket连接失败:', error);
+    }
     router.push('/chat');
   };
 

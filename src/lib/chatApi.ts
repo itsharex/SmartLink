@@ -407,7 +407,7 @@ export async function getOnlineParticipants(conversation_id: string): Promise<st
 }
 
 // WebSocket 相关功能
-export async function initializeWebSocket(server_url?: string): Promise<void> {
+export async function initializeWebSocket(serverUrl?: string): Promise<void> {
   const user = await getCurrentUser();
   if (!user) {
     throw new AuthenticationError('用户未登录');
@@ -418,9 +418,18 @@ export async function initializeWebSocket(server_url?: string): Promise<void> {
     throw new AuthenticationError('用户未登录');
   }
   
-  return invoke<void>('initialize_websocket', { 
-    token,
-    server_url
+  const wsUrl = serverUrl || 'ws://harrisonserver.com:8080';
+  
+  // 初始化WebSocket客户端
+  await invoke<void>('initialize_websocket', {
+    app: undefined,
+    serverUrl: wsUrl,
+    heartbeatIntervalMs: 30000
+  });
+  
+  // 连接WebSocket服务器
+  await invoke<void>('connect_websocket', {
+    userId: user.id
   });
 }
 
@@ -437,7 +446,7 @@ export async function connectWebSocket(): Promise<void> {
   
   return invoke<void>('connect_websocket', { 
     token,
-    user_id: user.id 
+    userId: user.id 
   });
 }
 

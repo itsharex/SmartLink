@@ -9,7 +9,9 @@ use tokio_tungstenite::{
 };
 use tracing::{debug, error, info};
 use url::Url;
-use crate::chat::models::{Message as ClientMessage};
+use crate::chat::models::{Message as ClientMessage, NewMessage};
+
+use super::db::ChatDatabase;
 
 /// WebSocket连接状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -26,16 +28,16 @@ pub enum ConnectionStatus {
 #[derive(Debug, Clone, Deserialize)]
 pub struct WebSocketConfig {
     /// WebSocket服务器URL
-    pub server_url: String,
+    pub serverUrl: String,
     /// 心跳间隔（毫秒）
-    pub heartbeat_interval_ms: u64,
+    pub heartbeatIntervalMs: u64,
 }
 
 impl Default for WebSocketConfig {
     fn default() -> Self {
         Self {
-            server_url: "wss://smartlink-server-production.up.railway.app".to_string(),
-            heartbeat_interval_ms: 30000,
+            serverUrl: "wss://harrisonserver.com:8080".to_string(),
+            heartbeatIntervalMs: 30000,
         }
     }
 }
@@ -94,7 +96,7 @@ impl WebSocketClient {
         *self.user_id.write().await = Some(user_id.clone());
         
         // 构建URL
-        let connect_url = format!("{}?user_id={}", self.config.server_url, user_id);
+        let connect_url = format!("{}?user_id={}", self.config.serverUrl, user_id);
         let url = Url::parse(&connect_url).map_err(|e| format!("Invalid URL: {}", e))?;
         
         // 连接到WebSocket服务器
@@ -196,7 +198,7 @@ impl WebSocketClient {
     fn start_heartbeat(&self) {
         let tx = self.tx.clone();
         let status = self.status.clone();
-        let interval = tokio::time::Duration::from_millis(self.config.heartbeat_interval_ms);
+        let interval = tokio::time::Duration::from_millis(self.config.heartbeatIntervalMs);
         
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(interval);
@@ -323,10 +325,10 @@ impl WebSocketState {
     }
 
     /// 连接WebSocket服务器
-    pub async fn connect(&self, user_id: String) -> Result<(), String> {
+    pub async fn connect(&self, userId: String) -> Result<(), String> {
         let client = self.client.lock().await;
         match &*client {
-            Some(ws_client) => ws_client.connect(user_id).await,
+            Some(ws_client) => ws_client.connect(userId).await,
             None => Err("WebSocket client not initialized".to_string()),
         }
     }
@@ -367,9 +369,40 @@ impl WebSocketState {
     }
     
     /// 保存缓存的消息到数据库
-    pub async fn save_pending_messages(&self) -> Result<(), String> {
-        // 此处应实现保存逻辑，例如在程序退出时调用
-        // 简化实现，仅返回成功
+    pub async fn save_pending_messages(&self, db: &ChatDatabase) -> Result<(), String> {
+        let client = self.client.lock().await;
+        let client = match &*client {
+            Some(c) => c,
+            None => return Ok(())
+        };
+        
+        let mut cache = client.message_cache.lock().await;
+        let messages = cache.take_pending_messages();
+        
+        if messages.is_empty() {
+            return Ok(());
+        }
+        
+        let mut failed_messages = Vec::new();
+        for message in messages {
+            let new_message = NewMessage {
+                conversation_id: message.conversation_id.clone(),
+                sender_id: message.sender_id.clone(),
+                content: message.content.clone(),
+                content_type: message.content_type.clone(),
+                encrypted: message.encrypted,
+                media_url: message.media_url.clone(),
+            };
+
+            if let Err(_) = db.save_message(new_message).await {
+                failed_messages.push(message);
+            }
+        }
+        
+        for message in failed_messages {
+            cache.add_message(message);
+        }
+        
         Ok(())
     }
 }

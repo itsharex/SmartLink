@@ -118,7 +118,6 @@ impl KeyManager {
         let encryption = self.encryption.lock().map_err(|_| 
             Error::Internal("Failed to lock encryption".to_string()))?;
         
-        // 这里会消耗私钥，如果需要持久化密钥，需要修改此处逻辑
         let private_key = std::mem::replace(&mut key_pair.private_key, EphemeralSecret::random_from_rng(&mut OsRng));
         
         encryption.derive_shared_secret(private_key, peer_public_key)
