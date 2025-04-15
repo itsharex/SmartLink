@@ -294,14 +294,25 @@ impl WebSocketClient {
     
     /// 创建认证消息
     fn create_auth_message(&self, user_id: &str) -> String {
-        serde_json::json!({
-            "message_type": "UserStatus",
-            "sender_id": user_id,
-            "data": {
-                "status": "online"
-            },
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        }).to_string()
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct AuthMessage {
+            message_type: &'static str,
+            sender_id: String,
+            data: serde_json::Value,
+            timestamp: String,
+        }
+        
+        let message = AuthMessage {
+            message_type: "userStatus",
+            sender_id: user_id.to_string(),
+            data: serde_json::json!({"status": "online"}),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+        
+        let text = serde_json::to_string(&message).unwrap();
+        debug!("生成认证消息: {}", text);
+        text
     }
 }
 
