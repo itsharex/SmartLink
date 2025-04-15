@@ -263,18 +263,17 @@ impl WebSocketClient {
         if *self.status.read().await != ConnectionStatus::Connected {
             return Err("Not connected to WebSocket server".to_string());
         }
-        
-        // 创建WebSocket消息
+
         let ws_message = serde_json::json!({
-            "message_type": "NewMessage",
-            "sender_id": message.sender_id,
-            "conversation_id": message.conversation_id,
-            "message_id": message.id,
+            "messageType": "newMessage",
+            "senderId": message.sender_id,
+            "conversationId": message.conversation_id,
+            "messageId": message.id,
             "data": {
                 "content": message.content,
-                "content_type": message.content_type,
+                "contentType": message.content_type,
                 "encrypted": message.encrypted,
-                "media_url": message.media_url,
+                "mediaUrl": message.media_url,
             },
             "timestamp": message.timestamp.to_rfc3339()
         }).to_string();
@@ -286,7 +285,6 @@ impl WebSocketClient {
         // 发送消息
         self.send_message(ws_message).await
     }
-    
     /// 获取当前状态
     pub async fn get_status(&self) -> ConnectionStatus {
         *self.status.read().await

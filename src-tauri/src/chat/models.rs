@@ -37,6 +37,7 @@ pub enum ConversationType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct Conversation {
     pub id: String,
     pub name: Option<String>, 
@@ -50,6 +51,7 @@ pub struct Conversation {
 
 // 用于创建新消息的简化结构
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewMessage {
     pub conversation_id: String,
     pub sender_id: String,
@@ -61,6 +63,7 @@ pub struct NewMessage {
 
 // 用于创建新会话的简化结构
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NewConversation {
     pub name: Option<String>,
     pub conversation_type: ConversationType,
@@ -70,6 +73,7 @@ pub struct NewConversation {
 
 // 用于更新消息状态的结构
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MessageStatusUpdate {
     pub message_id: String,
     pub user_id: String,
