@@ -11,8 +11,6 @@ use tracing::{debug, error, info};
 use url::Url;
 use crate::chat::models::{Message as ClientMessage};
 
-use super::models::MessageType;
-
 /// WebSocket连接状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ConnectionStatus {

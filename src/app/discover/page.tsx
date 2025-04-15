@@ -35,7 +35,7 @@ export default function DiscoveryPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* 侧边导航 */}
-      <SideNav />
+      <SideNav userName={''} />
       
       <div className="flex-1 bg-bg-primary overflow-auto">
         <div className="max-w-6xl mx-auto p-6">
@@ -62,7 +62,6 @@ export default function DiscoveryPage() {
               </div>
             </div>
           </div>
-          
           {/* 探索内容 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* 热门话题 */}

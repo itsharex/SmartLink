@@ -4,11 +4,13 @@ mod chat;
 mod contacts;
 mod db_init;
 mod error;
+mod webrtc;
 
 use std::sync::Arc;
 
 use auth::commands as auth_commands;
 use chat::commands as chat_commands;
+use webrtc::commands as webrtc_commands;
 use contacts::commands as contacts_commands;
 use mongodb::Database;
 use tauri::{Listener, Manager};
@@ -145,6 +147,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             contacts_commands::reject_friend_request,
             contacts_commands::add_contact_to_favorites,
             contacts_commands::remove_contact_from_favorites,
+
+            // webRTC releated
+            webrtc_commands::initiate_call,
+            webrtc_commands::send_webrtc_signal,
+            webrtc_commands::accept_call,
+            webrtc_commands::end_call,
+            webrtc_commands::get_active_call,
 
         ])
         .run(tauri::generate_context!());

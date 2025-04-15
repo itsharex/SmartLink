@@ -34,6 +34,9 @@ pub enum Error {
 
     #[error("Invalid nonce")]
     InvalidNonce,
+
+    #[error("WebSocket Error")]
+    WebSocket,
 }
 
 // 实现从MongoDB错误到自定义错误的转换
